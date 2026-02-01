@@ -12,9 +12,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import FocusSwitcher from '@/components/FocusSwitcher';
 import { cn } from '@/lib/utils';
-import type { Lead } from '@/types';
+import type { Lead, LeadResearchedEmail, LeadContactPage } from '@/types';
+import {
+  getDiscoveredCompanies,
+  getResearchedCompanyByDomain,
+  type DiscoveredCompany,
+  type ResearchedCompany,
+} from '@/services/agentsService';
 
 const MODAL_ROOT_ID = 'modal-root';
 
@@ -34,6 +41,17 @@ const Sponsors: React.FC = () => {
   const [newFunding, setNewFunding] = useState('');
   const [newContactTitle, setNewContactTitle] = useState('');
   const leadFileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Import from Agents state
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [discoveredCompanies, setDiscoveredCompanies] = useState<DiscoveredCompany[]>([]);
+  const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set());
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  
+  // Research data for selected lead
+  const [researchData, setResearchData] = useState<ResearchedCompany | null>(null);
+  const [isLoadingResearch, setIsLoadingResearch] = useState(false);
 
   const leads = activeFocus?.leads ?? [];
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? leads[0] ?? null;
@@ -160,6 +178,129 @@ const Sponsors: React.FC = () => {
     [activeFocus, leads, selectedLeadId, updateFocus, setSelectedLeadId]
   );
 
+  // Load discovered companies from agents
+  const loadDiscoveredCompanies = useCallback(async () => {
+    setIsLoadingCompanies(true);
+    try {
+      const companies = await getDiscoveredCompanies();
+      setDiscoveredCompanies(companies);
+      setSelectedImports(new Set());
+    } catch (e) {
+      console.error('Failed to load discovered companies:', e);
+    } finally {
+      setIsLoadingCompanies(false);
+    }
+  }, []);
+
+  // Toggle company selection for import
+  const toggleImportSelection = useCallback((domain: string) => {
+    setSelectedImports(prev => {
+      const next = new Set(prev);
+      if (next.has(domain)) {
+        next.delete(domain);
+      } else {
+        next.add(domain);
+      }
+      return next;
+    });
+  }, []);
+
+  // Check if a company is already imported as a lead
+  const isAlreadyImported = useCallback((domain: string) => {
+    return leads.some(l => l.domain === domain);
+  }, [leads]);
+
+  // Import selected companies as leads
+  const handleImportSelected = useCallback(async () => {
+    if (!activeFocus || selectedImports.size === 0) return;
+    
+    setIsImporting(true);
+    const newLeads: Lead[] = [];
+    
+    for (const domain of selectedImports) {
+      const company = discoveredCompanies.find(c => c.domain === domain);
+      if (!company || isAlreadyImported(domain)) continue;
+      
+      // Try to fetch research data for the company
+      let researchedEmails: LeadResearchedEmail[] = [];
+      let contactPages: LeadContactPage[] = [];
+      let contactEmail = '';
+      let leadName = 'Contact';
+      
+      try {
+        const research = await getResearchedCompanyByDomain(domain);
+        if (research) {
+          researchedEmails = research.emails.map(e => ({
+            email: e.email,
+            purpose: e.purpose,
+            confidence: e.confidence,
+            source_url: e.source_url,
+            evidence_quote: e.evidence_quote,
+          }));
+          contactPages = research.contact_pages.map(p => ({
+            url: p.url,
+            page_type: p.page_type,
+          }));
+          // Use first high-confidence email as contact
+          const bestEmail = research.emails.find(e => e.confidence === 'high') || research.emails[0];
+          if (bestEmail) {
+            contactEmail = bestEmail.email;
+          }
+        }
+      } catch (e) {
+        // No research data available, continue with basic info
+      }
+      
+      const newLead: Lead = {
+        id: crypto.randomUUID(),
+        confidenceScore: researchedEmails.length > 0 ? 70 : 0,
+        companyName: company.name,
+        leadName: leadName,
+        contactEmail: contactEmail,
+        draftReady: false,
+        tier: 2,
+        industry: company.industry || undefined,
+        domain: domain,
+        researchedEmails: researchedEmails.length > 0 ? researchedEmails : undefined,
+        contactPages: contactPages.length > 0 ? contactPages : undefined,
+      };
+      
+      newLeads.push(newLead);
+    }
+    
+    if (newLeads.length > 0) {
+      const updatedLeads = [...leads, ...newLeads];
+      updateFocus(activeFocus.id, { leads: updatedLeads });
+      setSelectedLeadId(newLeads[0].id);
+    }
+    
+    setIsImporting(false);
+    setImportModalOpen(false);
+    setSelectedImports(new Set());
+  }, [activeFocus, selectedImports, discoveredCompanies, leads, isAlreadyImported, updateFocus, setSelectedLeadId]);
+
+  // Fetch research data when lead with domain is selected
+  useEffect(() => {
+    const fetchResearchData = async () => {
+      if (!selectedLead?.domain) {
+        setResearchData(null);
+        return;
+      }
+      
+      setIsLoadingResearch(true);
+      try {
+        const research = await getResearchedCompanyByDomain(selectedLead.domain);
+        setResearchData(research);
+      } catch (e) {
+        setResearchData(null);
+      } finally {
+        setIsLoadingResearch(false);
+      }
+    };
+    
+    fetchResearchData();
+  }, [selectedLead?.domain]);
+
   const allAttachmentNames = [
     ...attachmentList,
     ...attachmentFiles.map((f) => f.name),
@@ -200,15 +341,29 @@ const Sponsors: React.FC = () => {
       <div className="w-72 border-r border-border flex flex-col bg-background shrink-0">
         <header className="border-b border-border px-4 py-3 shrink-0 space-y-2">
           <FocusSwitcher onNewFocus={() => navigate('/objectives')} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full font-mono text-xs"
-            onClick={() => setAddSponsorOpen(true)}
-          >
-            Add sponsor
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1 font-mono text-xs"
+              onClick={() => setAddSponsorOpen(true)}
+            >
+              Add sponsor
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="flex-1 font-mono text-xs"
+              onClick={() => {
+                setImportModalOpen(true);
+                loadDiscoveredCompanies();
+              }}
+            >
+              Import
+            </Button>
+          </div>
         </header>
         <div className="flex-1 overflow-y-auto">
           {leads.map((lead) => (
@@ -302,6 +457,76 @@ const Sponsors: React.FC = () => {
                 </Card>
               </div>
             </section>
+
+            {/* Researched Emails Section */}
+            {(selectedLead.researchedEmails?.length || researchData?.emails?.length) ? (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest font-mono">
+                    Researched Emails
+                  </h4>
+                  {isLoadingResearch && (
+                    <span className="text-[10px] font-mono text-muted-foreground">Loading...</span>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {(researchData?.emails || selectedLead.researchedEmails || []).map((email, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-3 rounded-sm border border-border bg-muted/20">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-sm font-medium truncate">{email.email}</p>
+                        {email.purpose && (
+                          <p className="font-mono text-xs text-muted-foreground">{email.purpose}</p>
+                        )}
+                      </div>
+                      <Badge 
+                        variant={email.confidence === 'high' ? 'default' : email.confidence === 'medium' ? 'secondary' : 'outline'} 
+                        className="font-mono text-xs shrink-0"
+                      >
+                        {email.confidence}
+                      </Badge>
+                      {email.source_url && (
+                        <a
+                          href={email.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline shrink-0"
+                        >
+                          source
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Contact Pages Section */}
+            {(selectedLead.contactPages?.length || researchData?.contact_pages?.length) ? (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest font-mono">
+                    Contact Pages
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {(researchData?.contact_pages || selectedLead.contactPages || []).map((page, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-3 rounded-sm border border-border bg-muted/20">
+                      <a
+                        href={page.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-sm text-primary hover:underline truncate flex-1"
+                      >
+                        {page.url}
+                      </a>
+                      <Badge variant="outline" className="font-mono text-xs shrink-0">
+                        {page.page_type}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <div>
               <span className="text-[10px] font-mono uppercase text-muted-foreground">To</span>
@@ -586,6 +811,133 @@ const Sponsors: React.FC = () => {
                     Add
                   </Button>
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+        return createPortal(modal, modalRoot);
+      })()}
+
+      {/* Import from Agents Modal */}
+      {importModalOpen && (() => {
+        const modalRoot = typeof document !== 'undefined' ? document.getElementById(MODAL_ROOT_ID) : null;
+        if (!modalRoot) return null;
+        const modal = (
+          <div
+            className="flex items-center justify-center p-4"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.75)',
+              minWidth: '100vw',
+              minHeight: '100vh',
+              boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.target === e.currentTarget && setImportModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-agents-title"
+          >
+            <div
+              className="w-full max-w-2xl rounded-sm border border-neutral-200 shadow-2xl max-h-[80vh] flex flex-col"
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#111111',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-neutral-200 px-6 py-4 flex items-center justify-between shrink-0">
+                <h2 id="import-agents-title" className="text-sm font-mono uppercase tracking-wide font-semibold">
+                  Import from Agents
+                </h2>
+                <Button variant="ghost" size="sm" className="font-mono text-xs" onClick={() => setImportModalOpen(false)}>
+                  Close
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                {isLoadingCompanies ? (
+                  <p className="text-center text-muted-foreground font-mono text-sm py-8">Loading companies...</p>
+                ) : discoveredCompanies.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground font-mono text-sm">No discovered companies found.</p>
+                    <p className="text-muted-foreground font-mono text-xs mt-2">
+                      Use the Agents page to discover companies first.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {selectedImports.size} selected
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="font-mono text-xs"
+                        onClick={() => {
+                          const selectableCompanies = discoveredCompanies.filter(c => !isAlreadyImported(c.domain));
+                          if (selectedImports.size === selectableCompanies.length) {
+                            setSelectedImports(new Set());
+                          } else {
+                            setSelectedImports(new Set(selectableCompanies.map(c => c.domain)));
+                          }
+                        }}
+                      >
+                        {selectedImports.size === discoveredCompanies.filter(c => !isAlreadyImported(c.domain)).length ? 'Deselect All' : 'Select All'}
+                      </Button>
+                    </div>
+                    {discoveredCompanies.map((company) => {
+                      const alreadyImported = isAlreadyImported(company.domain);
+                      return (
+                        <div
+                          key={company.domain}
+                          className={cn(
+                            'flex items-center gap-3 p-3 rounded-sm border',
+                            alreadyImported
+                              ? 'bg-muted/50 border-muted cursor-not-allowed'
+                              : selectedImports.has(company.domain)
+                                ? 'border-primary bg-primary/5 cursor-pointer'
+                                : 'border-neutral-200 hover:border-neutral-300 cursor-pointer'
+                          )}
+                          onClick={() => !alreadyImported && toggleImportSelection(company.domain)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedImports.has(company.domain)}
+                            disabled={alreadyImported}
+                            onChange={() => toggleImportSelection(company.domain)}
+                            className="shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-mono text-sm font-medium truncate">{company.name}</p>
+                            <p className="font-mono text-xs text-muted-foreground truncate">{company.domain}</p>
+                          </div>
+                          {company.industry && (
+                            <Badge variant="outline" className="font-mono text-xs shrink-0">
+                              {company.industry}
+                            </Badge>
+                          )}
+                          {alreadyImported && (
+                            <Badge variant="secondary" className="font-mono text-xs shrink-0">
+                              Imported
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-neutral-200 px-6 py-4 flex justify-end gap-2 shrink-0">
+                <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => setImportModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="font-mono text-xs"
+                  onClick={handleImportSelected}
+                  disabled={selectedImports.size === 0 || isImporting}
+                >
+                  {isImporting ? 'Importing...' : `Import ${selectedImports.size} Selected`}
+                </Button>
               </div>
             </div>
           </div>

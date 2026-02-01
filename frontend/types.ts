@@ -63,6 +63,20 @@ export interface OutreachSlot {
 
 export type HookTone = 'professional' | 'short_punchy' | 'student_to_recruiter';
 
+// Agent research types for Lead integration
+export interface LeadResearchedEmail {
+  email: string;
+  purpose: string;
+  confidence: string;
+  source_url: string;
+  evidence_quote: string;
+}
+
+export interface LeadContactPage {
+  url: string;
+  page_type: string;
+}
+
 export interface Lead {
   id: string;
   confidenceScore: number;
@@ -80,6 +94,10 @@ export interface Lead {
   funding?: string;
   contactTitle?: string;
   verified?: boolean;
+  // Agent research data
+  domain?: string;
+  researchedEmails?: LeadResearchedEmail[];
+  contactPages?: LeadContactPage[];
 }
 
 export interface FocusTemplateBricks {
