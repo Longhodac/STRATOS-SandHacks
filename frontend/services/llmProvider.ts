@@ -144,6 +144,78 @@ const AGENT_FUNCTIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'add_to_focus',
+      description: 'Add a company or sponsor to a specific focus/objective. Use this when the user wants to add a company to their focus, add a sponsor, or add a lead to their outreach list.',
+      parameters: {
+        type: 'object',
+        properties: {
+          focusName: {
+            type: 'string',
+            description: 'Name of the focus to add to (use "active" or "current" for the currently active focus)',
+          },
+          companyName: {
+            type: 'string',
+            description: 'Name of the company to add',
+          },
+          contactName: {
+            type: 'string',
+            description: 'Name of the contact person (optional)',
+          },
+          contactEmail: {
+            type: 'string',
+            description: 'Contact email address (optional)',
+          },
+          domain: {
+            type: 'string',
+            description: 'Company domain (e.g., "company.com") (optional)',
+          },
+        },
+        required: ['companyName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'apply_template',
+      description: 'Apply the email template to generate a draft email for a company/lead. Use this when the user wants to generate an email draft, apply a template, or create outreach for a company.',
+      parameters: {
+        type: 'object',
+        properties: {
+          companyName: {
+            type: 'string',
+            description: 'Name of the company to generate draft for',
+          },
+          customHook: {
+            type: 'string',
+            description: 'Optional custom hook/opening line to use instead of generating one',
+          },
+        },
+        required: ['companyName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'navigate_to',
+      description: 'Navigate to a specific tab in the application. Use this when the user wants to go to, view, or open a specific section.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tab: {
+            type: 'string',
+            enum: ['dashboard', 'objectives', 'sponsors', 'clubs', 'agents', 'settings'],
+            description: 'The tab to navigate to',
+          },
+        },
+        required: ['tab'],
+      },
+    },
+  },
 ];
 
 // ==================== Groq Provider (Raw Fetch) ====================

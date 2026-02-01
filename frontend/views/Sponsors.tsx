@@ -409,14 +409,26 @@ const Sponsors: React.FC = () => {
           <h3 className="font-bold text-foreground text-base font-mono tracking-wide">
             {selectedLead ? selectedLead.companyName : 'Select a lead'}
           </h3>
-          <Button
-            variant="outline"
-            size="sm"
-            className="font-mono text-xs"
-            onClick={handleEditGeneralTemplate}
-          >
-            Edit General Template
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="font-mono text-xs"
+              onClick={handleEditGeneralTemplate}
+            >
+              Edit General Template
+            </Button>
+            {selectedLead && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                onClick={() => handleRemoveLead(selectedLead.id)}
+              >
+                Delete Sponsor
+              </Button>
+            )}
+          </div>
         </div>
 
         {!selectedLead ? (

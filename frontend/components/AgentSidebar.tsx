@@ -34,7 +34,7 @@ const MAX_SYSTEM_LOG_LINES = 50;
 const AGENT_MODES: AgentMode[] = ['discovery', 'research', 'drafting', 'strategy'];
 
 const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
-  const { activeFocus, getFocus, updateFocus } = useFocus();
+  const { activeFocus, getFocus, updateFocus, focuses, setActiveFocus } = useFocus();
   const { selectedLeadId } = useSelectedLead();
   const { templateModalFocusId, applySuggestedBricks } = useTemplateModal();
   const { pushHook } = useAgentBridge();
@@ -308,7 +308,15 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
         const execution = await executeAgentFunction(
           functionCall.name,
           functionCall.arguments,
-          { activeFocus, selectedLead, clubProfile: profile }
+          { 
+            activeFocus, 
+            selectedLead, 
+            clubProfile: profile,
+            // Pass focus management methods for agentic functions
+            focuses,
+            updateFocus,
+            setActiveFocus,
+          }
         );
 
         // Update modal with result
@@ -320,7 +328,12 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
         
         const actions: Array<{ id: string; label: string; type: string }> = [];
         if (execution.success && execution.navigateTo) {
-          actions.push({ id: 'view-agents', label: 'View in Agents Tab', type: 'navigate_agents' });
+          // Generate appropriate label based on navigation target
+          const navLabel = execution.navigateTo === '/agents' ? 'View in Agents Tab' 
+            : execution.navigateTo === '/sponsors' ? 'View in Sponsors Tab'
+            : execution.navigateTo === '/clubs' ? 'View in Clubs Tab'
+            : 'View Result';
+          actions.push({ id: 'view-result', label: navLabel, type: 'navigate', route: execution.navigateTo });
         }
 
         setMessages((prev) => [...prev, {
@@ -329,6 +342,15 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
           text: execution.message,
           actions: actions.length > 0 ? actions : undefined
         }]);
+
+        // Auto-navigate after successful function execution
+        if (execution.success && execution.navigateTo) {
+          // Small delay to let modal show success before navigating
+          setTimeout(() => {
+            navigate(execution.navigateTo!);
+          }, 1500);
+        }
+
         pushLog('> Done.');
       } else if (displayText) {
         // Regular text response (show cleaned text if we removed failed function parsing)
@@ -438,6 +460,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
                           if (a.type === 'regenerate_hook') handleInlineRegenerateHook();
                           if (a.type === 'save_to_draft') handleSaveToDraft();
                           if (a.type === 'navigate_agents') navigate('/agents');
+                          if (a.type === 'navigate' && (a as any).route) navigate((a as any).route);
                         }}
                       >
                         {a.label}
@@ -590,7 +613,12 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
             placeholder="Message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             disabled={paused}
           />
           <Button

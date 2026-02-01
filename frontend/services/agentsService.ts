@@ -151,6 +151,12 @@ export async function getDiscoveredCompanies(): Promise<DiscoveredCompany[]> {
   return apiRequest<DiscoveredCompany[]>('/discovery/companies');
 }
 
+export async function deleteDiscoveredCompany(domain: string): Promise<{ success: boolean; message: string }> {
+  return apiRequest<{ success: boolean; message: string }>(`/discovery/companies/${encodeURIComponent(domain)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function getDiscoveryRuns(limit: number = 50): Promise<DiscoveryRun[]> {
   return apiRequest<DiscoveryRun[]>(`/discovery/runs?limit=${limit}`);
 }

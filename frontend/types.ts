@@ -257,6 +257,10 @@ export interface AgentFunctionContext {
   activeFocus: Focus | null;
   selectedLead: Lead | null;
   clubProfile: ClubProfile;
+  // Focus management methods for agentic functions
+  focuses?: Focus[];
+  updateFocus?: (id: string, patch: Partial<Focus>) => void;
+  setActiveFocus?: (id: string) => void;
 }
 
 export interface AgentFunctionResult {

@@ -52,8 +52,8 @@ import company_researcher
 from models import list_companies, get_company, get_company_by_id, Company as DBCompany
 
 # Company discovery imports
-from discovery import discover_companies as discovery_search, get_csv_companies, run_discovery
-from database import list_runs as discovery_list_runs, get_companies_for_run, get_run
+from discovery import discover_companies as discovery_search, get_csv_companies, run_discovery, delete_company_from_csv
+from database import list_runs as discovery_list_runs, get_companies_for_run, get_run, delete_company as db_delete_company
 
 # Selenium scraper imports (functions from selenium_scraper_app.py)
 from selenium_scraper_app import (
@@ -402,6 +402,25 @@ async def discovery_get_companies():
             )
             for c in companies
         ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/discovery/companies/{domain}")
+async def discovery_delete_company(domain: str):
+    """Delete a discovered company by domain."""
+    try:
+        # Delete from database
+        db_deleted = db_delete_company(domain)
+        # Delete from CSV
+        csv_deleted = delete_company_from_csv(domain)
+        
+        if not db_deleted and not csv_deleted:
+            raise HTTPException(status_code=404, detail=f"Company with domain '{domain}' not found")
+        
+        return {"success": True, "message": f"Deleted company: {domain}"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

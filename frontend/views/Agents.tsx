@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import Pagination from '@/components/Pagination';
 import { cn } from '@/lib/utils';
 import type { AgentTab } from '@/types';
 import { AGENT_TAB_LABELS, AGENT_TAB_DESCRIPTIONS } from '@/types';
@@ -18,6 +19,7 @@ import {
   checkHealth,
   discoverCompanies,
   getDiscoveredCompanies,
+  deleteDiscoveredCompany,
   researchCompany,
   getResearchedCompanies,
   scrapeWebsite,
@@ -34,6 +36,8 @@ const TABS: AgentTab[] = ['discovery', 'research', 'scraper'];
 
 // ==================== Discovery Tab ====================
 
+const ITEMS_PER_PAGE = 20;
+
 function DiscoveryTab() {
   const [keyword, setKeyword] = useState('');
   const [region, setRegion] = useState('');
@@ -41,6 +45,8 @@ function DiscoveryTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [companies, setCompanies] = useState<DiscoveredCompany[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [deletingDomain, setDeletingDomain] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     loadCompanies();
@@ -70,6 +76,22 @@ function DiscoveryTab() {
       setError(e instanceof Error ? e.message : 'Discovery failed');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (domain: string, companyName: string) => {
+    if (!confirm(`Delete "${companyName}" (${domain}) from the database?`)) return;
+    
+    setDeletingDomain(domain);
+    setError(null);
+    
+    try {
+      await deleteDiscoveredCompany(domain);
+      setCompanies(prev => prev.filter(c => c.domain !== domain));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete company');
+    } finally {
+      setDeletingDomain(null);
     }
   };
 
@@ -140,17 +162,20 @@ function DiscoveryTab() {
                 <TableHead className="font-mono text-xs">Industry</TableHead>
                 <TableHead className="font-mono text-xs">Region</TableHead>
                 <TableHead className="font-mono text-xs">Description</TableHead>
+                <TableHead className="font-mono text-xs w-20">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {companies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     No companies discovered yet. Run a discovery search above.
                   </TableCell>
                 </TableRow>
               ) : (
-                companies.slice(0, 50).map((company, idx) => (
+                companies
+                  .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                  .map((company, idx) => (
                   <TableRow key={`${company.domain}-${idx}`}>
                     <TableCell className="font-medium">{company.name}</TableCell>
                     <TableCell className="font-mono text-sm">{company.domain}</TableCell>
@@ -163,11 +188,28 @@ function DiscoveryTab() {
                     <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                       {company.description || '-'}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="font-mono text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(company.domain, company.name)}
+                        disabled={deletingDomain === company.domain}
+                      >
+                        {deletingDomain === company.domain ? '...' : 'Delete'}
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={companies.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </CardContent>
       </Card>
     </div>
@@ -187,6 +229,7 @@ function ResearchTab() {
   const [error, setError] = useState<string | null>(null);
   const [isResearchingAll, setIsResearchingAll] = useState(false);
   const [researchAllProgress, setResearchAllProgress] = useState({ current: 0, total: 0 });
+  const [discoveredPage, setDiscoveredPage] = useState(1);
 
   useEffect(() => {
     loadDiscoveredCompanies();
@@ -361,7 +404,9 @@ function ResearchTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {discoveredCompanies.slice(0, 20).map((company, idx) => (
+                {discoveredCompanies
+                  .slice((discoveredPage - 1) * ITEMS_PER_PAGE, discoveredPage * ITEMS_PER_PAGE)
+                  .map((company, idx) => (
                   <TableRow key={`${company.domain}-${idx}`}>
                     <TableCell className="font-medium">{company.name}</TableCell>
                     <TableCell className="font-mono text-sm">{company.domain}</TableCell>
@@ -392,6 +437,12 @@ function ResearchTab() {
                 ))}
               </TableBody>
             </Table>
+            <Pagination
+              currentPage={discoveredPage}
+              totalItems={discoveredCompanies.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setDiscoveredPage}
+            />
           </CardContent>
         </Card>
       )}

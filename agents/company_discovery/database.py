@@ -392,5 +392,30 @@ def get_all_emails(run_id: Optional[int] = None) -> List[Dict]:
     return [dict(row) for row in rows]
 
 
+def delete_company(domain: str) -> bool:
+    """Delete a company and all related data by domain. Returns True if deleted."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Find company ID by domain
+    cursor.execute("SELECT id FROM companies WHERE domain = ?", (domain,))
+    row = cursor.fetchone()
+    
+    if not row:
+        conn.close()
+        return False
+    
+    company_id = row[0]
+    
+    # Delete related data first (foreign key constraints)
+    cursor.execute("DELETE FROM emails WHERE company_id = ?", (company_id,))
+    cursor.execute("DELETE FROM sources WHERE company_id = ?", (company_id,))
+    cursor.execute("DELETE FROM companies WHERE id = ?", (company_id,))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+
 # Initialize database on import
 init_db()

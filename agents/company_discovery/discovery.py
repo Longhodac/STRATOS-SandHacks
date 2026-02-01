@@ -301,6 +301,33 @@ def get_csv_companies() -> List[Dict]:
         return list(reader)
 
 
+def delete_company_from_csv(domain: str) -> bool:
+    """Delete a company from CSV by domain. Returns True if found and deleted."""
+    if not CSV_OUTPUT.exists():
+        return False
+    
+    # Read all companies
+    with open(CSV_OUTPUT, 'r', newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        companies = list(reader)
+        fieldnames = reader.fieldnames
+    
+    # Filter out the company with matching domain
+    original_count = len(companies)
+    companies = [c for c in companies if c.get('domain', '').lower() != domain.lower()]
+    
+    if len(companies) == original_count:
+        return False  # Company not found
+    
+    # Write back
+    with open(CSV_OUTPUT, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(companies)
+    
+    return True
+
+
 def get_company_count() -> int:
     """Get count of companies in CSV."""
     return len(get_csv_companies())
