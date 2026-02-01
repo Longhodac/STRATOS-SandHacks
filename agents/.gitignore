@@ -1,0 +1,56 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Secrets and API Keys
+.streamlit/secrets.toml
+.env
+.env.local
+*.key
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# CSV Output Files (contains discovered data)
+discovered_companies.csv
+discovered_emails.csv
+company_contacts.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/

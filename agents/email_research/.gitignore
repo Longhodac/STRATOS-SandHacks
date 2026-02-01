@@ -1,0 +1,13 @@
+# Database
+*.db
+*.sqlite
+
+# Output CSV files
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+
+# Secrets
+.streamlit/secrets.toml
