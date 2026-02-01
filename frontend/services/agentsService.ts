@@ -1,9 +1,9 @@
 /**
  * API client for the Python agents backend.
- * Connects to FastAPI server running at localhost:8000.
+ * Uses VITE_API_URL when set (e.g. for production); falls back to localhost for dev.
  */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // ==================== Types ====================
 
