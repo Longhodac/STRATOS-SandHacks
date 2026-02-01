@@ -177,7 +177,7 @@ def load_companies_from_discovery() -> list:
 
 
 def create_driver(headless: bool = True) -> webdriver.Chrome:
-    """Create a Chrome WebDriver instance."""
+    """Create a Chrome WebDriver instance. Supports Docker when CHROME_BIN and CHROMEDRIVER_PATH are set."""
     options = Options()
 
     if headless:
@@ -189,7 +189,17 @@ def create_driver(headless: bool = True) -> webdriver.Chrome:
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-    if WEBDRIVER_MANAGER_AVAILABLE:
+    # Use system Chrome/Chromium when in Docker (CHROME_BIN and CHROMEDRIVER_PATH set)
+    chrome_bin = os.environ.get("CHROME_BIN")
+    chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
+
+    if chrome_bin:
+        options.binary_location = chrome_bin
+
+    if chromedriver_path:
+        service = Service(chromedriver_path)
+        driver = webdriver.Chrome(service=service, options=options)
+    elif WEBDRIVER_MANAGER_AVAILABLE:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
     else:
