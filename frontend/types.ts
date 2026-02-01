@@ -178,3 +178,33 @@ export interface Focus {
   pipeline: PipelineItem[];
   status: FocusStatus;
 }
+
+// ==================== Agent Types ====================
+
+export type AgentTab = 'discovery' | 'research' | 'scraper';
+
+export const AGENT_TAB_LABELS: Record<AgentTab, string> = {
+  discovery: 'Company Discovery',
+  research: 'Email Research',
+  scraper: 'Website Scraper',
+};
+
+export const AGENT_TAB_DESCRIPTIONS: Record<AgentTab, string> = {
+  discovery: 'Find companies by industry keyword using AI',
+  research: 'Research company emails using Perplexity',
+  scraper: 'Scrape websites for email addresses',
+};
+
+// Re-export agent types from service for convenience
+export type {
+  DiscoveredCompany,
+  DiscoveryRun,
+  DiscoveryResult,
+  ResearchedEmail,
+  ResearchedCompany,
+  ResearchedCompanyListItem,
+  ScrapedEmail,
+  ScrapeResult,
+  ScrapeHistoryItem,
+  HealthStatus,
+} from './services/agentsService';

@@ -28,7 +28,8 @@ const navItems: NavItem[] = [
       { id: '03b', label: 'SPONSORS', path: '/sponsors' },
     ],
   },
-  { id: '04', label: 'SETTINGS', path: '/settings' },
+  { id: '04', label: 'AGENTS', path: '/agents' },
+  { id: '05', label: 'SETTINGS', path: '/settings' },
 ];
 
 function clubInitials(name: string): string {

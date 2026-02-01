@@ -3,6 +3,11 @@ streamlit>=1.31.0
 pandas>=2.0.0
 requests>=2.31.0
 
+# FastAPI for REST API
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pydantic>=2.0.0
+
 # Selenium for web scraping
 selenium>=4.15.0
 webdriver-manager>=4.0.0

@@ -10,6 +10,7 @@ import Objectives from './views/Objectives';
 import Clubs from './views/Clubs';
 import Sponsors from './views/Sponsors';
 import Settings from './views/Settings';
+import Agents from './views/Agents';
 
 const App: React.FC = () => {
   return (
@@ -24,6 +25,7 @@ const App: React.FC = () => {
                   <Route path="/objectives" element={<Objectives />} />
                   <Route path="/clubs" element={<Clubs />} />
                   <Route path="/sponsors" element={<Sponsors />} />
+                  <Route path="/agents" element={<Agents />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Layout>
