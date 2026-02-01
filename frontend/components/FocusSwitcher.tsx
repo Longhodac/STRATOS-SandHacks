@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useLayoutEffect, useState, useMemo } from 're
 import { createPortal } from 'react-dom';
 import { useFocus } from '@/lib/FocusContext';
 import { useAgentMode } from '@/lib/AgentModeContext';
+import { Badge } from '@/components/ui/badge';
 import { AGENT_MODE_LABELS } from '@/types';
 import type { FocusTemplateType } from '@/types';
 import { cn } from '@/lib/utils';
@@ -105,13 +106,16 @@ const FocusSwitcher: React.FC<FocusSwitcherProps> = ({ onNewFocus, templateType 
                     setOpen(false);
                   }}
                   className={cn(
-                    'w-full px-3 py-2 text-left text-sm font-mono truncate block',
+                    'w-full px-3 py-2 text-left text-sm font-mono flex items-center gap-2 min-w-0',
                     f.id === activeFocusId
                       ? 'bg-neutral-200 text-neutral-900'
                       : 'text-neutral-800 hover:bg-neutral-100'
                   )}
                 >
-                  {f.name}
+                  <span className="truncate min-w-0 flex-1">{f.name}</span>
+                  <Badge variant="outline" className="font-mono text-[10px] shrink-0">
+                    {f.templateType === 'collaboration' ? 'Clubs' : 'Sponsors'}
+                  </Badge>
                 </button>
               </li>
             ))}

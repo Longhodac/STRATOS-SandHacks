@@ -6,6 +6,7 @@ import { useSelectedLead } from '@/lib/SelectedLeadContext';
 import { useTemplateModal } from '@/lib/TemplateModalContext';
 import { useAgentBridge } from '@/lib/AgentBridgeContext';
 import { useAgentMode } from '@/lib/AgentModeContext';
+import { useAgentSidebar } from '@/lib/AgentSidebarContext';
 import { useClubProfile } from '@/lib/ClubProfileContext';
 import { getMeatFromFocus, fillTemplate } from '@/lib/templateUtils';
 import { parseFunctionCallsFromText } from '@/lib/parseFunctionCalls';
@@ -39,6 +40,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
   const { templateModalFocusId, applySuggestedBricks } = useTemplateModal();
   const { pushHook } = useAgentBridge();
   const { mode, modeOverride, setModeOverride } = useAgentMode();
+  const { pendingMessage, clearPendingMessage } = useAgentSidebar();
   const { profile } = useClubProfile();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<SidebarMessage[]>([]);
@@ -64,6 +66,8 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
   const modeMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const systemLogRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeepResearching, setIsDeepResearching] = useState(false);
 
   const selectedLead = activeFocus?.leads?.find((l) => l.id === selectedLeadId) ?? null;
 
@@ -96,8 +100,18 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
     return () => document.removeEventListener('mousedown', handle);
   }, [modeMenuOpen]);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDeepResearching, setIsDeepResearching] = useState(false);
+  // Handle pending messages from other components (e.g., Match Missions button)
+  useEffect(() => {
+    if (pendingMessage && !isLoading && !paused) {
+      setInput(pendingMessage);
+      clearPendingMessage();
+      // Trigger send after setting input
+      setTimeout(() => {
+        const submitBtn = document.querySelector('[data-agent-submit]') as HTMLButtonElement;
+        submitBtn?.click();
+      }, 100);
+    }
+  }, [pendingMessage, isLoading, paused, clearPendingMessage]);
 
   const handleAnalyzeStructure = async () => {
     const focusId = templateModalFocusId;
@@ -626,6 +640,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
             className="font-mono rounded-sm bg-neutral-900 text-white hover:bg-neutral-800 border-0"
             onClick={handleSend}
             disabled={!input.trim() || isLoading || paused}
+            data-agent-submit
           >
             {isLoading ? '...' : 'Send'}
           </Button>

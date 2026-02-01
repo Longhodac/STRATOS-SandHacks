@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useFocus } from '@/lib/FocusContext';
@@ -29,7 +29,7 @@ const MODAL_ROOT_ID = 'modal-root';
 
 const Sponsors: React.FC = () => {
   const navigate = useNavigate();
-  const { activeFocus, updateFocus, getAttachmentFiles, getLeadAttachmentFiles, setLeadAttachmentFiles } = useFocus();
+  const { focuses, activeFocus, setActiveFocus, updateFocus, getAttachmentFiles, getLeadAttachmentFiles, setLeadAttachmentFiles } = useFocus();
   const { profile } = useClubProfile();
   const { openTemplateModal } = useTemplateModal();
   const { selectedLeadId, setSelectedLeadId } = useSelectedLead();
@@ -55,7 +55,24 @@ const Sponsors: React.FC = () => {
   const [researchData, setResearchData] = useState<ResearchedCompany | null>(null);
   const [isLoadingResearch, setIsLoadingResearch] = useState(false);
 
-  const leads = activeFocus?.leads ?? [];
+  // Filter focuses to only sponsorship type (companies, not clubs)
+  const sponsorshipFocuses = useMemo(
+    () => focuses.filter((f) => f.templateType === 'sponsorship'),
+    [focuses]
+  );
+  const activeFocusIsSponsorship = activeFocus?.templateType === 'sponsorship';
+  const effectiveFocus = activeFocusIsSponsorship
+    ? activeFocus
+    : (sponsorshipFocuses[0] ?? null);
+
+  // Auto-switch to a sponsorship focus if current focus is not sponsorship
+  useEffect(() => {
+    if (!activeFocusIsSponsorship && sponsorshipFocuses.length > 0) {
+      setActiveFocus(sponsorshipFocuses[0].id);
+    }
+  }, [activeFocusIsSponsorship, sponsorshipFocuses, setActiveFocus]);
+
+  const leads = effectiveFocus?.leads ?? [];
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? leads[0] ?? null;
 
   useEffect(() => {
@@ -65,61 +82,61 @@ const Sponsors: React.FC = () => {
       setSelectedLeadId(null);
     }
   }, [leads, selectedLeadId]);
-  const bricks = activeFocus?.templateBricks;
+  const bricks = effectiveFocus?.templateBricks;
   const credibility = bricks?.credibility ?? `We are ${profile.clubName}. We represent students and run events that reach the broader campus community.`;
-  const meatFromFocus = activeFocus ? getMeatFromFocus(activeFocus) : '';
+  const meatFromFocus = effectiveFocus ? getMeatFromFocus(effectiveFocus) : '';
   const meatForLead = selectedLead?.meatOverride ?? meatFromFocus;
   const templateCta = bricks?.cta ?? 'Would you be open to a short call?';
   const leadCta = selectedLead?.cta ?? templateCta;
 
   const handleHookChange = useCallback(
     (value: string) => {
-      if (!selectedLead || !activeFocus) return;
+      if (!selectedLead || !effectiveFocus) return;
       const updatedLeads = leads.map((l) =>
         l.id === selectedLead.id ? { ...l, hook: value } : l
       );
-      updateFocus(activeFocus.id, { leads: updatedLeads });
+      updateFocus(effectiveFocus.id, { leads: updatedLeads });
     },
-    [selectedLead, activeFocus, leads, updateFocus]
+    [selectedLead, effectiveFocus, leads, updateFocus]
   );
 
   const handleMeatChange = useCallback(
     (value: string) => {
-      if (!selectedLead || !activeFocus) return;
-      const meatFromFocusVal = activeFocus.templateBricks?.meat ?? getMeatFromFocus(activeFocus);
+      if (!selectedLead || !effectiveFocus) return;
+      const meatFromFocusVal = effectiveFocus.templateBricks?.meat ?? getMeatFromFocus(effectiveFocus);
       const updatedLeads = leads.map((l) =>
         l.id === selectedLead.id ? { ...l, meatOverride: value === meatFromFocusVal ? undefined : value } : l
       );
-      updateFocus(activeFocus.id, { leads: updatedLeads });
+      updateFocus(effectiveFocus.id, { leads: updatedLeads });
     },
-    [selectedLead, activeFocus, leads, updateFocus]
+    [selectedLead, effectiveFocus, leads, updateFocus]
   );
 
   const handleCtaChange = useCallback(
     (value: string) => {
-      if (!selectedLead || !activeFocus) return;
+      if (!selectedLead || !effectiveFocus) return;
       const updatedLeads = leads.map((l) =>
         l.id === selectedLead.id ? { ...l, cta: value } : l
       );
-      updateFocus(activeFocus.id, { leads: updatedLeads });
+      updateFocus(effectiveFocus.id, { leads: updatedLeads });
     },
-    [selectedLead, activeFocus, leads, updateFocus]
+    [selectedLead, effectiveFocus, leads, updateFocus]
   );
 
   const handleSubjectChange = useCallback(
     (value: string) => {
-      if (!selectedLead || !activeFocus) return;
+      if (!selectedLead || !effectiveFocus) return;
       const updatedLeads = leads.map((l) =>
         l.id === selectedLead.id ? { ...l, subject: value } : l
       );
-      updateFocus(activeFocus.id, { leads: updatedLeads });
+      updateFocus(effectiveFocus.id, { leads: updatedLeads });
     },
-    [selectedLead, activeFocus, leads, updateFocus]
+    [selectedLead, effectiveFocus, leads, updateFocus]
   );
 
   const handleEditGeneralTemplate = useCallback(() => {
-    if (activeFocus) openTemplateModal(activeFocus.id);
-  }, [activeFocus, openTemplateModal]);
+    if (effectiveFocus) openTemplateModal(effectiveFocus.id);
+  }, [effectiveFocus, openTemplateModal]);
 
   const greetingText = selectedLead && bricks?.greeting
     ? fillTemplate(bricks.greeting, { lead_name: selectedLead.leadName })
@@ -128,32 +145,32 @@ const Sponsors: React.FC = () => {
       : '';
 
   const attachmentList = bricks?.attachments?.filter(Boolean) ?? [];
-  const attachmentFiles = activeFocus ? getAttachmentFiles(activeFocus.id) : [];
+  const attachmentFiles = effectiveFocus ? getAttachmentFiles(effectiveFocus.id) : [];
   const leadAttachmentFiles =
-    selectedLead && activeFocus ? getLeadAttachmentFiles(activeFocus.id, selectedLead.id) : [];
+    selectedLead && effectiveFocus ? getLeadAttachmentFiles(effectiveFocus.id, selectedLead.id) : [];
 
   const handleLeadFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!selectedLead || !activeFocus || !e.target.files?.length) return;
+      if (!selectedLead || !effectiveFocus || !e.target.files?.length) return;
       const files = e.target.files;
       const next: File[] = [...leadAttachmentFiles, ...Array.from<File>(files)];
-      setLeadAttachmentFiles(activeFocus.id, selectedLead.id, next);
+      setLeadAttachmentFiles(effectiveFocus.id, selectedLead.id, next);
       e.target.value = '';
     },
-    [selectedLead, activeFocus, leadAttachmentFiles, setLeadAttachmentFiles]
+    [selectedLead, effectiveFocus, leadAttachmentFiles, setLeadAttachmentFiles]
   );
 
   const removeLeadFile = useCallback(
     (index: number) => {
-      if (!selectedLead || !activeFocus) return;
+      if (!selectedLead || !effectiveFocus) return;
       const next = leadAttachmentFiles.filter((_, i) => i !== index);
-      setLeadAttachmentFiles(activeFocus.id, selectedLead.id, next);
+      setLeadAttachmentFiles(effectiveFocus.id, selectedLead.id, next);
     },
-    [selectedLead, activeFocus, leadAttachmentFiles, setLeadAttachmentFiles]
+    [selectedLead, effectiveFocus, leadAttachmentFiles, setLeadAttachmentFiles]
   );
 
   const handleAddSponsor = useCallback(() => {
-    if (!activeFocus || !newCompany.trim() || !newLeadName.trim() || !newContactEmail.trim()) return;
+    if (!effectiveFocus || !newCompany.trim() || !newLeadName.trim() || !newContactEmail.trim()) return;
     const newLead: Lead = {
       id: crypto.randomUUID(),
       confidenceScore: 0,
@@ -167,7 +184,7 @@ const Sponsors: React.FC = () => {
       contactTitle: newContactTitle.trim() || undefined,
     };
     const updatedLeads = [...leads, newLead];
-    updateFocus(activeFocus.id, { leads: updatedLeads });
+    updateFocus(effectiveFocus.id, { leads: updatedLeads });
     setSelectedLeadId(newLead.id);
     setAddSponsorOpen(false);
     setNewCompany('');
@@ -176,19 +193,19 @@ const Sponsors: React.FC = () => {
     setNewIndustry('');
     setNewFunding('');
     setNewContactTitle('');
-  }, [activeFocus, leads, newCompany, newLeadName, newContactEmail, newIndustry, newFunding, newContactTitle, updateFocus, setSelectedLeadId]);
+  }, [effectiveFocus, leads, newCompany, newLeadName, newContactEmail, newIndustry, newFunding, newContactTitle, updateFocus, setSelectedLeadId]);
 
   const handleRemoveLead = useCallback(
     (leadId: string) => {
-      if (!activeFocus) return;
+      if (!effectiveFocus) return;
       const updatedLeads = leads.filter((l) => l.id !== leadId);
-      updateFocus(activeFocus.id, { leads: updatedLeads });
+      updateFocus(effectiveFocus.id, { leads: updatedLeads });
       if (selectedLeadId === leadId) {
         const next = updatedLeads[0] ?? null;
         setSelectedLeadId(next?.id ?? null);
       }
     },
-    [activeFocus, leads, selectedLeadId, updateFocus, setSelectedLeadId]
+    [effectiveFocus, leads, selectedLeadId, updateFocus, setSelectedLeadId]
   );
 
   // Load discovered companies from agents
@@ -225,7 +242,7 @@ const Sponsors: React.FC = () => {
 
   // Import selected companies as leads
   const handleImportSelected = useCallback(async () => {
-    if (!activeFocus || selectedImports.size === 0) return;
+    if (!effectiveFocus || selectedImports.size === 0) return;
     
     setIsImporting(true);
     const newLeads: Lead[] = [];
@@ -283,14 +300,14 @@ const Sponsors: React.FC = () => {
     
     if (newLeads.length > 0) {
       const updatedLeads = [...leads, ...newLeads];
-      updateFocus(activeFocus.id, { leads: updatedLeads });
+      updateFocus(effectiveFocus.id, { leads: updatedLeads });
       setSelectedLeadId(newLeads[0].id);
     }
     
     setIsImporting(false);
     setImportModalOpen(false);
     setSelectedImports(new Set());
-  }, [activeFocus, selectedImports, discoveredCompanies, leads, isAlreadyImported, updateFocus, setSelectedLeadId]);
+  }, [effectiveFocus, selectedImports, discoveredCompanies, leads, isAlreadyImported, updateFocus, setSelectedLeadId]);
 
   // Fetch research data when lead with domain is selected
   useEffect(() => {
@@ -368,7 +385,7 @@ const Sponsors: React.FC = () => {
     : '';
 
   const handleSendEmail = useCallback(() => {
-    if (!selectedLead?.contactEmail || !profile || !activeFocus) return;
+    if (!selectedLead?.contactEmail || !profile || !effectiveFocus) return;
     
     // Calculate values fresh inside the callback
     const greeting = bricks?.greeting
@@ -376,13 +393,13 @@ const Sponsors: React.FC = () => {
       : `Dear ${selectedLead.leadName},`;
     
     const cred = bricks?.credibility ?? profile.credibility ?? '';
-    const meat = selectedLead.meatOverride ?? bricks?.meat ?? getMeatFromFocus(activeFocus);
+    const meat = selectedLead.meatOverride ?? bricks?.meat ?? getMeatFromFocus(effectiveFocus);
     const cta = selectedLead.cta ?? bricks?.cta ?? '';
     
     const attachments = [
       ...(bricks?.attachments?.filter(Boolean) ?? []),
-      ...getAttachmentFiles(activeFocus.id).map(f => f.name),
-      ...getLeadAttachmentFiles(activeFocus.id, selectedLead.id).map(f => f.name),
+      ...getAttachmentFiles(effectiveFocus.id).map(f => f.name),
+      ...getLeadAttachmentFiles(effectiveFocus.id, selectedLead.id).map(f => f.name),
     ].filter(Boolean);
     
     const body = [
@@ -408,9 +425,18 @@ const Sponsors: React.FC = () => {
       subject: subject,
       body: body,
     });
-  }, [selectedLead, profile, bricks, activeFocus, getAttachmentFiles, getLeadAttachmentFiles]);
+  }, [selectedLead, profile, bricks, effectiveFocus, getAttachmentFiles, getLeadAttachmentFiles]);
 
-  if (!activeFocus) {
+  // Show message if no sponsorship focuses exist
+  if (sponsorshipFocuses.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <p className="text-sm font-mono text-muted-foreground">No sponsorship focus. Create one in Objectives.</p>
+      </div>
+    );
+  }
+
+  if (!effectiveFocus) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <p className="text-sm font-mono text-muted-foreground">No focus selected. Create one in Objectives.</p>
@@ -422,7 +448,7 @@ const Sponsors: React.FC = () => {
     <div className="flex-1 flex overflow-hidden">
       <div className="w-72 border-r border-border flex flex-col bg-background shrink-0">
         <header className="border-b border-border px-4 py-3 shrink-0 space-y-2">
-          <FocusSwitcher onNewFocus={() => navigate('/objectives')} />
+          <FocusSwitcher onNewFocus={() => navigate('/objectives')} templateType="sponsorship" />
           <div className="flex gap-2">
             <Button
               type="button"
@@ -628,11 +654,11 @@ const Sponsors: React.FC = () => {
                 <Select
                   value={selectedLead.contactEmail || ''}
                   onValueChange={(email) => {
-                    if (!activeFocus || !selectedLead) return;
+                    if (!effectiveFocus || !selectedLead) return;
                     const updatedLeads = leads.map(l =>
                       l.id === selectedLead.id ? { ...l, contactEmail: email } : l
                     );
-                    updateFocus(activeFocus.id, { leads: updatedLeads });
+                    updateFocus(effectiveFocus.id, { leads: updatedLeads });
                   }}
                 >
                   <SelectTrigger className="font-mono text-sm">

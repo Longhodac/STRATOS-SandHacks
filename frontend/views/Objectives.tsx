@@ -13,6 +13,7 @@ import { useFocus } from '@/lib/FocusContext';
 import { useTemplateModal } from '@/lib/TemplateModalContext';
 import { getDefaultMasterTemplate, getDefaultTemplateBricks } from '@/lib/templateUtils';
 import TemplateBricksEditor from '@/components/TemplateBricksEditor';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { Focus, FocusStatus, PinnedContext, FocusTemplateType, FocusTemplateBricks } from '@/types';
 
@@ -308,6 +309,7 @@ const Objectives: React.FC = () => {
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
                   <TableHead className="font-mono text-xs uppercase text-muted-foreground">Focus Name</TableHead>
+                  <TableHead className="font-mono text-xs uppercase text-muted-foreground">Type</TableHead>
                   <TableHead className="font-mono text-xs uppercase text-muted-foreground">Status</TableHead>
                   <TableHead className="font-mono text-xs uppercase text-muted-foreground">Leads</TableHead>
                   <TableHead className="font-mono text-xs uppercase text-muted-foreground text-right">Actions</TableHead>
@@ -317,6 +319,11 @@ const Objectives: React.FC = () => {
                 {displayFocuses.map((focus) => (
                   <TableRow key={focus.id} className="border-border">
                     <TableCell className="font-mono text-foreground">{focus.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        {focus.templateType === 'collaboration' ? 'Clubs' : 'Sponsors'}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="font-mono text-muted-foreground">
                       {STATUS_LABELS[focus.status]}
                     </TableCell>

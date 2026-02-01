@@ -99,6 +99,8 @@ export interface Lead {
   domain?: string;
   researchedEmails?: LeadResearchedEmail[];
   contactPages?: LeadContactPage[];
+  // UCSD organization data
+  description?: string;
 }
 
 export interface FocusTemplateBricks {

@@ -20,6 +20,17 @@ const Settings: React.FC = () => {
     setNewInterest('');
   };
 
+  const handleDeleteEverything = () => {
+    const message =
+      'This will permanently remove all saved data: focuses/campaigns, club profile, and LLM settings. This cannot be undone. Continue?';
+    if (!window.confirm(message)) return;
+    localStorage.removeItem('STRATOS_FOCUSES');
+    localStorage.removeItem('STRATOS_ACTIVE_FOCUS_ID');
+    localStorage.removeItem('STRATOS_CLUB_PROFILE');
+    localStorage.removeItem('llm_config');
+    window.location.reload();
+  };
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-4xl mx-auto w-full px-8 py-10 flex flex-col gap-10">
@@ -215,6 +226,23 @@ const Settings: React.FC = () => {
                   </CardContent>
                 </Card>
               </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-bold text-foreground font-display border-b border-border pb-2">Danger zone</h2>
+          <p className="text-muted-foreground text-sm">Permanently remove all data stored by this app (focuses, club profile, LLM settings).</p>
+          <Card className="rounded-sm border-border">
+            <CardContent className="p-6 flex flex-col gap-4">
+              <Button
+                variant="destructive"
+                size="sm"
+                className="font-mono rounded-sm"
+                onClick={handleDeleteEverything}
+              >
+                Delete everything in the database
+              </Button>
             </CardContent>
           </Card>
         </section>

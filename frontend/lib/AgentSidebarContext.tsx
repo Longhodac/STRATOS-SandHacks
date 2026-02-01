@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useState, useCallback } from 'react';
 
 type AgentSidebarContextValue = {
   sidebarOpen: boolean;
+  pendingMessage: string | null;
+  sendAgentMessage: (message: string) => void;
+  clearPendingMessage: () => void;
 };
 
 const AgentSidebarContext = createContext<AgentSidebarContextValue | null>(null);
@@ -13,7 +16,21 @@ export function AgentSidebarProvider({
   children: React.ReactNode;
   sidebarOpen: boolean;
 }) {
-  const value = useMemo(() => ({ sidebarOpen }), [sidebarOpen]);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+
+  const sendAgentMessage = useCallback((message: string) => {
+    setPendingMessage(message);
+  }, []);
+
+  const clearPendingMessage = useCallback(() => {
+    setPendingMessage(null);
+  }, []);
+
+  const value = useMemo(
+    () => ({ sidebarOpen, pendingMessage, sendAgentMessage, clearPendingMessage }),
+    [sidebarOpen, pendingMessage, sendAgentMessage, clearPendingMessage]
+  );
+
   return (
     <AgentSidebarContext.Provider value={value}>
       {children}
