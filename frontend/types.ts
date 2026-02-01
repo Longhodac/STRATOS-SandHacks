@@ -86,6 +86,7 @@ export interface Lead {
   tier: 1 | 2 | 3;
   draftText?: string;
   contactEmail?: string;
+  subject?: string;
   hook?: string;
   hookReasoning?: string;
   meatOverride?: string;

@@ -7,11 +7,14 @@ import { useSelectedLead } from '@/lib/SelectedLeadContext';
 import { useAgentSidebar } from '@/lib/AgentSidebarContext';
 import { useTemplateModal } from '@/lib/TemplateModalContext';
 import { getMeatFromFocus, fillTemplate } from '@/lib/templateUtils';
+import { openGmailCompose, generateCollaborationSubject } from '@/lib/gmailUtils';
 import { formatFileSize } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import FocusSwitcher from '@/components/FocusSwitcher';
 import { cn } from '@/lib/utils';
 import type { Lead } from '@/types';
@@ -95,6 +98,17 @@ const Clubs: React.FC = () => {
       if (!selectedLead || !effectiveFocus) return;
       const updatedLeads = leads.map((l) =>
         l.id === selectedLead.id ? { ...l, cta: value } : l
+      );
+      updateFocus(effectiveFocus.id, { leads: updatedLeads });
+    },
+    [selectedLead, effectiveFocus, leads, updateFocus]
+  );
+
+  const handleSubjectChange = useCallback(
+    (value: string) => {
+      if (!selectedLead || !effectiveFocus) return;
+      const updatedLeads = leads.map((l) =>
+        l.id === selectedLead.id ? { ...l, subject: value } : l
       );
       updateFocus(effectiveFocus.id, { leads: updatedLeads });
     },
@@ -201,6 +215,75 @@ const Clubs: React.FC = () => {
           : []),
       ].join('\n')
     : '';
+
+  // Email body for Gmail (without the "To:" line)
+  const emailBody = selectedLead
+    ? [
+        greetingText,
+        '',
+        selectedLead.hook?.trim() ?? '',
+        '',
+        credibility.trim(),
+        '',
+        meatForLead.trim(),
+        '',
+        leadCta.trim(),
+        '',
+        'Best,',
+        profile?.name ?? '[Your name]',
+        ...(allAttachmentNames.length > 0
+          ? ['', `Attachments: ${allAttachmentNames.join(', ')}`]
+          : []),
+      ].join('\n')
+    : '';
+
+  // Default subject for the email
+  const defaultSubject = selectedLead && profile
+    ? generateCollaborationSubject(profile.name, selectedLead.companyName)
+    : '';
+
+  const handleSendEmail = useCallback(() => {
+    if (!selectedLead?.contactEmail || !profile || !effectiveFocus) return;
+    
+    // Calculate values fresh inside the callback
+    const greeting = bricks?.greeting
+      ? fillTemplate(bricks.greeting, { lead_name: selectedLead.leadName })
+      : `Dear ${selectedLead.leadName},`;
+    
+    const cred = bricks?.credibility ?? profile.credibility ?? '';
+    const meat = selectedLead.meatOverride ?? bricks?.meat ?? getMeatFromFocus(effectiveFocus);
+    const cta = selectedLead.cta ?? bricks?.cta ?? '';
+    
+    const attachments = [
+      ...(bricks?.attachments?.filter(Boolean) ?? []),
+      ...getAttachmentFiles(effectiveFocus.id).map(f => f.name),
+      ...getLeadAttachmentFiles(effectiveFocus.id, selectedLead.id).map(f => f.name),
+    ].filter(Boolean);
+    
+    const body = [
+      greeting,
+      '',
+      selectedLead.hook?.trim() ?? '',
+      '',
+      cred.trim(),
+      '',
+      meat.trim(),
+      '',
+      cta.trim(),
+      '',
+      'Best,',
+      profile.name ?? '[Your name]',
+      ...(attachments.length > 0 ? ['', `Attachments: ${attachments.join(', ')}`] : []),
+    ].join('\n');
+    
+    const subject = selectedLead.subject || generateCollaborationSubject(profile.name, selectedLead.companyName);
+    
+    openGmailCompose({
+      to: selectedLead.contactEmail,
+      subject: subject,
+      body: body,
+    });
+  }, [selectedLead, profile, bricks, effectiveFocus, getAttachmentFiles, getLeadAttachmentFiles]);
 
   if (collaborationFocuses.length === 0) {
     return (
@@ -327,10 +410,52 @@ const Clubs: React.FC = () => {
             </section>
 
             <div>
-              <span className="text-[10px] font-mono uppercase text-muted-foreground">To</span>
-              <p className="font-mono text-sm text-foreground mt-0.5">
-                {selectedLead.contactEmail ?? '—'}
-              </p>
+              <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">To</span>
+              {selectedLead.researchedEmails?.length ? (
+                <Select
+                  value={selectedLead.contactEmail || ''}
+                  onValueChange={(email) => {
+                    if (!effectiveFocus || !selectedLead) return;
+                    const updatedLeads = leads.map(l =>
+                      l.id === selectedLead.id ? { ...l, contactEmail: email } : l
+                    );
+                    updateFocus(effectiveFocus.id, { leads: updatedLeads });
+                  }}
+                >
+                  <SelectTrigger className="font-mono text-sm">
+                    <SelectValue placeholder="Select email address" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedLead.researchedEmails.map((email, idx) => (
+                      <SelectItem key={idx} value={email.email} className="font-mono text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 truncate">{email.email}</span>
+                          <Badge 
+                            variant={email.confidence === 'high' ? 'default' : email.confidence === 'medium' ? 'secondary' : 'outline'} 
+                            className="font-mono text-xs"
+                          >
+                            {email.confidence}
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="font-mono text-sm text-foreground mt-0.5">
+                  {selectedLead.contactEmail ?? '—'}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">Subject</span>
+              <Input
+                value={selectedLead.subject ?? ''}
+                onChange={(e) => handleSubjectChange(e.target.value)}
+                placeholder={defaultSubject}
+                className="font-mono text-sm"
+              />
             </div>
 
             <div>
@@ -446,7 +571,12 @@ const Clubs: React.FC = () => {
               <Button variant="outline" size="sm" className="font-mono text-xs">
                 Save Draft
               </Button>
-              <Button size="sm" className="font-mono text-xs">
+              <Button 
+                size="sm" 
+                className="font-mono text-xs"
+                onClick={handleSendEmail}
+                disabled={!selectedLead?.contactEmail}
+              >
                 Send Email
               </Button>
             </div>
