@@ -21,7 +21,7 @@ const TARGET_OPTIONS = ['Local Business', 'Tech', 'Alumni', 'Event Spaces', 'Cam
 const AVAILABLE_CONTEXT_SOURCES: PinnedContext[] = [
   { id: 'ctx-gdrive-pitch', label: 'Google Drive: Pitch Deck', source: 'gdrive' },
   { id: 'ctx-website-about', label: 'Club Website: About Us', source: 'website' },
-  { id: 'ctx-discord', label: 'Discord: Technical Interest Groups', source: 'discord' },
+  { id: 'ctx-calendar', label: 'Google Calendar: Club Events', source: 'calendar' },
   { id: 'ctx-gdrive-sponsor', label: 'Google Drive: Sponsorship Deck', source: 'gdrive' },
 ];
 

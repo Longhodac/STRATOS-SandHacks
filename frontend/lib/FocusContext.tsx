@@ -80,7 +80,7 @@ const DEFAULT_FOCUSES: Focus[] = [
     '$1,000 / 20 Pizzas',
     'Local Tech Founders, Event Spaces',
     '2026-03-15',
-    [{ id: 'pc1', label: 'Discord: Technical Interest Groups', source: 'discord' }],
+    [{ id: 'pc1', label: 'Google Calendar: Club Events', source: 'calendar' }],
     'active',
     ['Local Business', 'Tech'],
     'sponsorship'

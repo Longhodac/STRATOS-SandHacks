@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,11 +9,28 @@ import { useFocusModal } from '@/lib/FocusModalContext';
 import { useTemplateModal } from '@/lib/TemplateModalContext';
 import FocusSwitcher from '@/components/FocusSwitcher';
 import type {
-  ActiveGoal,
   Lead,
   PipelineItem,
   PipelineStage,
 } from '@/types';
+
+const HIGH_CONFIDENCE_THRESHOLD = 80;
+
+function computeStatsFromFocus(leads: Lead[], pipeline: PipelineItem[]): {
+  leadsFound: number;
+  outreachSent: number;
+  responseRate: number;
+  highConfidenceMatches: number;
+} {
+  const outreachSent = pipeline.filter((p) => p.stage === 'waiting' || p.stage === 'closed').length;
+  const closed = pipeline.filter((p) => p.stage === 'closed').length;
+  return {
+    leadsFound: leads.length,
+    outreachSent,
+    responseRate: outreachSent === 0 ? 0 : Math.round((closed / outreachSent) * 100),
+    highConfidenceMatches: leads.filter((l) => l.confidenceScore >= HIGH_CONFIDENCE_THRESHOLD).length,
+  };
+}
 
 const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   researching: 'Researching',
@@ -22,33 +39,11 @@ const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   closed: 'Closed/Partnered',
 };
 
-function FocusHeader({
-  goal,
-  onNewFocus,
-}: {
-  goal: ActiveGoal;
-  onNewFocus: () => void;
-}) {
-  const committedPct = goal.totalAmount
-    ? Math.round((goal.committedAmount / goal.totalAmount) * 100)
-    : 0;
+function FocusHeader({ onNewFocus }: { onNewFocus: () => void }) {
   return (
     <header className="border-b border-border pb-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <FocusSwitcher onNewFocus={onNewFocus} />
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex-1 h-2 bg-muted rounded-sm overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-sm transition-[width]"
-              style={{ width: `${committedPct}%` }}
-            />
-          </div>
-          <span className="text-xs font-mono text-muted-foreground shrink-0">
-            {committedPct}% Committed · {goal.pendingAmount} Pending
-          </span>
-        </div>
+      <div className="flex flex-col gap-1">
+        <FocusSwitcher onNewFocus={onNewFocus} />
       </div>
     </header>
   );
@@ -251,12 +246,17 @@ const Home: React.FC = () => {
     );
   }
 
+  const stats = useMemo(
+    () => computeStatsFromFocus(activeFocus.leads, activeFocus.pipeline),
+    [activeFocus.leads, activeFocus.pipeline]
+  );
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 overflow-y-auto p-8 lg:p-12">
         <div className="max-w-6xl mx-auto flex flex-col gap-8">
-          <FocusHeader goal={activeFocus.goal} onNewFocus={() => openFocusModal(null)} />
-          <QuickStatsRow stats={activeFocus.stats} />
+          <FocusHeader onNewFocus={() => openFocusModal(null)} />
+          <QuickStatsRow stats={stats} />
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div>
               <ActionQueue leads={activeFocus.leads} />

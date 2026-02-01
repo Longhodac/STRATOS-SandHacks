@@ -85,8 +85,7 @@ const Settings: React.FC = () => {
           <Card className="rounded-sm border-border overflow-hidden gap-0">
             {[
               { label: 'Google Drive', detail: 'Synced: 23m ago', active: true, icon: 'add_to_drive' },
-              { label: 'Discord Community', detail: 'Listening on #general', active: true, icon: 'forum' },
-              { label: 'GitHub Repository', detail: 'Not connected', active: false, icon: 'code' }
+              { label: 'Google Calendar', detail: 'Not connected', active: false, icon: 'event' }
             ].map((item, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <Separator />}
