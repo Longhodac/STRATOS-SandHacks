@@ -69,9 +69,9 @@ flowchart TB
     end
 
     subgraph PythonAPI [Python API]
-        Discovery[/discovery/search]
-        Research[/research]
-        Scraper[/scraper/scrape]
+        Discovery[discovery search]
+        Research[research]
+        Scraper[scraper scrape]
     end
 
     Router --> ClubProfile --> Focus --> SelectedLead --> AgentBridge --> LLMConfig
