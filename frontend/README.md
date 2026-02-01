@@ -33,12 +33,10 @@ Then edit `.env.local` and add your API keys:
 
 ```env
 VITE_GROQ_API_KEY=your_groq_api_key_here
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-**Get API Keys:**
+**Get API Key:**
 - **Groq**: https://console.groq.com/keys (free tier available)
-- **Gemini**: https://ai.google.dev/ (optional, fallback only)
 
 ### 3. Run Development Server
 
@@ -123,8 +121,7 @@ frontend/
 ├── services/
 │   ├── llmProvider.ts        # Groq LLM adapter
 │   ├── agentFunctions.ts     # Function call executor
-│   ├── agentsService.ts      # Backend API client
-│   └── geminiService.ts      # Mock utility functions
+│   └── agentsService.ts     # Backend API client
 ├── lib/
 │   ├── LLMConfigContext.tsx  # LLM configuration state
 │   ├── ClubProfileContext.tsx

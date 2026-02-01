@@ -4,9 +4,8 @@
  */
 
 import { discoverCompanies, researchCompany, scrapeWebsite } from './agentsService';
-import { generateHook, deepResearchLead } from './geminiService';
 import { fillTemplate, getMeatFromFocus, getCredibilityFromProfile, getDefaultTemplateBricks } from '@/lib/templateUtils';
-import type { AgentFunctionContext, AgentFunctionResult, HookTone, Lead, Focus } from '@/types';
+import type { AgentFunctionContext, AgentFunctionResult, Lead, Focus } from '@/types';
 
 // Tab name to route mapping
 const TAB_ROUTES: Record<string, string> = {
@@ -102,76 +101,6 @@ export async function executeAgentFunction(
           result,
           message: `✓ Scraped ${domain}. Found ${result.emails_found} email${result.emails_found !== 1 ? 's' : ''} across ${result.pages_visited} page${result.pages_visited !== 1 ? 's' : ''}. View in Agents tab.`,
           navigateTo: '/agents',
-        };
-      }
-
-      case 'generate_hook': {
-        const { companyName, tone } = args;
-
-        if (!companyName) {
-          // Try to use selected lead if no company name provided
-          if (context.selectedLead) {
-            const hookTone: HookTone = (tone as HookTone) || 'professional';
-            const hookInstructions = context.activeFocus?.templateBricks?.hookInstructions || '';
-
-            const result = await generateHook(
-              context.selectedLead.companyName,
-              context.clubProfile.interests,
-              hookInstructions,
-              hookTone
-            );
-
-            return {
-              success: true,
-              result,
-              message: `✓ Generated hook for ${context.selectedLead.companyName}:\n\n"${result.hook}"\n\nReasoning: ${result.reasoning}`,
-            };
-          }
-
-          return {
-            success: false,
-            result: null,
-            message: 'Error: No company specified and no lead selected',
-          };
-        }
-
-        const hookTone: HookTone = (tone as HookTone) || 'professional';
-        const hookInstructions = context.activeFocus?.templateBricks?.hookInstructions || '';
-
-        const result = await generateHook(
-          companyName,
-          context.clubProfile.interests,
-          hookInstructions,
-          hookTone
-        );
-
-        return {
-          success: true,
-          result,
-          message: `✓ Generated hook for ${companyName}:\n\n"${result.hook}"\n\nReasoning: ${result.reasoning}`,
-        };
-      }
-
-      case 'deep_research_lead': {
-        if (!context.selectedLead) {
-          return {
-            success: false,
-            result: null,
-            message: 'Error: No lead selected. Please select a lead first.',
-          };
-        }
-
-        const result = await deepResearchLead(
-          context.selectedLead,
-          context.activeFocus?.name
-        );
-
-        const bullets = result.map((bullet) => `• ${bullet}`).join('\n');
-
-        return {
-          success: true,
-          result,
-          message: `✓ Deep research on ${context.selectedLead.companyName}:\n\n${bullets}`,
         };
       }
 
@@ -381,15 +310,23 @@ export async function executeAgentFunction(
     }
   } catch (error) {
     console.error(`[AgentFunction] Error executing ${functionName}:`, error);
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    // Check if it's a backend connection error
-    if (errorMessage.includes('fetch') || errorMessage.includes('NetworkError')) {
+    const lower = errorMessage.toLowerCase();
+
+    // User-friendly message for backend/network errors
+    if (
+      lower.includes('fetch') ||
+      lower.includes('networkerror') ||
+      lower.includes('failed to fetch') ||
+      lower.includes('connection refused') ||
+      lower.includes('net::err_') ||
+      lower.includes('load failed')
+    ) {
       return {
         success: false,
         result: null,
-        message: `⚠ Cannot connect to agents backend. Make sure the Python agent service is running at http://localhost:8000`,
+        message: `⚠ Cannot reach the agents backend. Start the Python agent service (e.g. \`uvicorn\` or \`streamlit\`) so it is running at http://localhost:8000, then try again.`,
       };
     }
 
@@ -431,14 +368,6 @@ export function validateFunctionArgs(
       if (!args.companyName || typeof args.companyName !== 'string') {
         return { valid: false, error: 'Missing or invalid "companyName" parameter' };
       }
-      break;
-
-    case 'generate_hook':
-      // companyName is optional if lead is selected
-      break;
-
-    case 'deep_research_lead':
-      // No required args (uses selected lead from context)
       break;
 
     case 'add_to_focus':

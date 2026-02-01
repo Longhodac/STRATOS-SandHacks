@@ -1,21 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFocus } from '@/lib/FocusContext';
 import { useSelectedLead } from '@/lib/SelectedLeadContext';
-import { useTemplateModal } from '@/lib/TemplateModalContext';
-import { useAgentBridge } from '@/lib/AgentBridgeContext';
-import { useAgentMode } from '@/lib/AgentModeContext';
 import { useAgentSidebar } from '@/lib/AgentSidebarContext';
 import { useClubProfile } from '@/lib/ClubProfileContext';
-import { getMeatFromFocus, fillTemplate } from '@/lib/templateUtils';
 import { parseFunctionCallsFromText } from '@/lib/parseFunctionCalls';
 import { createLLMChat } from '@/services/llmProvider';
 import { executeAgentFunction } from '@/services/agentFunctions';
-import { deepResearchLead, analyzeTemplateStructure, generateHook } from '@/services/geminiService';
 import FunctionExecutionModal, { type ExecutionStatus } from '@/components/FunctionExecutionModal';
-import type { FocusTemplateBricks, AgentMode, LLMMessage } from '@/types';
-import { AGENT_MODE_LABELS, AGENT_MODE_DESCRIPTIONS } from '@/types';
+import type { LLMMessage, LLMToolCall } from '@/types';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,25 +25,16 @@ type AgentSidebarProps = {
 };
 
 const MAX_SYSTEM_LOG_LINES = 50;
-
-const AGENT_MODES: AgentMode[] = ['discovery', 'research', 'drafting', 'strategy'];
+const MAX_AGENT_ITERATIONS = 5;
 
 const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
-  const { activeFocus, getFocus, updateFocus, focuses, setActiveFocus } = useFocus();
+  const { activeFocus, updateFocus, focuses, setActiveFocus } = useFocus();
   const { selectedLeadId } = useSelectedLead();
-  const { templateModalFocusId, applySuggestedBricks } = useTemplateModal();
-  const { pushHook } = useAgentBridge();
-  const { mode, modeOverride, setModeOverride } = useAgentMode();
   const { pendingMessage, clearPendingMessage } = useAgentSidebar();
   const { profile } = useClubProfile();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<SidebarMessage[]>([]);
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [systemLog, setSystemLog] = useState<string[]>([]);
-  const [paused, setPaused] = useState(false);
-  const [lastSuggestedBricks, setLastSuggestedBricks] = useState<Partial<FocusTemplateBricks> | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isRegeneratingHook, setIsRegeneratingHook] = useState(false);
   const [input, setInput] = useState('');
   const [executionModal, setExecutionModal] = useState<{
     isOpen: boolean;
@@ -57,17 +42,17 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
     functionArgs: Record<string, any> | null;
     status: ExecutionStatus;
     resultMessage?: string;
+    currentIndex?: number;
+    totalCount?: number;
   }>({
     isOpen: false,
     functionName: null,
     functionArgs: null,
     status: 'idle',
   });
-  const modeMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const systemLogRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDeepResearching, setIsDeepResearching] = useState(false);
 
   const selectedLead = activeFocus?.leads?.find((l) => l.id === selectedLeadId) ?? null;
 
@@ -75,338 +60,232 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
     setSystemLog((prev) => [...prev.slice(-(MAX_SYSTEM_LOG_LINES - 1)), line]);
   };
 
-  // Initialize with connection status
+  // Initialize with connection status and API key check
   useEffect(() => {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
     pushLog('> Groq LLM: llama-3.1-8b-instant');
     pushLog('> Function calling enabled');
-    pushLog('> Ready');
+    if (!apiKey) {
+      pushLog('> ⚠ ERROR: VITE_GROQ_API_KEY not configured in .env.local');
+    } else {
+      pushLog('> Ready');
+    }
   }, []);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    });
   }, [messages.length]);
 
   useEffect(() => {
     systemLogRef.current?.scrollTo({ top: systemLogRef.current.scrollHeight, behavior: 'smooth' });
   }, [systemLog.length]);
 
-  useEffect(() => {
-    if (!modeMenuOpen) return;
-    const handle = (e: MouseEvent) => {
-      if (modeMenuRef.current?.contains(e.target as Node)) return;
-      setModeMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [modeMenuOpen]);
+  // Ref so pending-message effect can call latest handleSend without it in deps
+  const handleSendRef = useRef<(messageOverride?: string) => void>(() => {});
 
   // Handle pending messages from other components (e.g., Match Missions button)
   useEffect(() => {
-    if (pendingMessage && !isLoading && !paused) {
-      setInput(pendingMessage);
+    if (pendingMessage && !isLoading) {
+      const msg = pendingMessage;
       clearPendingMessage();
-      // Trigger send after setting input
-      setTimeout(() => {
-        const submitBtn = document.querySelector('[data-agent-submit]') as HTMLButtonElement;
-        submitBtn?.click();
-      }, 100);
+      handleSendRef.current(msg);
     }
-  }, [pendingMessage, isLoading, paused, clearPendingMessage]);
+  }, [pendingMessage, isLoading, clearPendingMessage]);
 
-  const handleAnalyzeStructure = async () => {
-    const focusId = templateModalFocusId;
-    if (!focusId || isAnalyzing) return;
-    const focus = getFocus(focusId);
-    if (!focus?.templateBricks) return;
-    setIsAnalyzing(true);
-    setLastSuggestedBricks(null);
-    pushLog('> Analyzing template...');
-    try {
-      const result = await analyzeTemplateStructure(
-        focus.templateBricks,
-        focus.templateType ?? 'sponsorship'
-      );
-      setLastSuggestedBricks(result.suggestedBricks ?? null);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: 'agent',
-          text: result.suggestions,
-          actions: result.suggestedBricks
-            ? [{ id: 'apply-template', label: 'Apply Changes', type: 'apply_template_changes' }]
-            : undefined,
-        },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: 'agent', text: 'Template analysis failed. Please try again.' },
-      ]);
-      pushLog('> Error.');
-    } finally {
-      setIsAnalyzing(false);
-      pushLog('> Done.');
-    }
-  };
-
-  const handleSaveToDraft = () => {
-    if (!activeFocus || !selectedLead) return;
-    const bricks = activeFocus.templateBricks;
-    const greetingText =
-      bricks?.greeting && selectedLead.leadName
-        ? fillTemplate(bricks.greeting, { lead_name: selectedLead.leadName })
-        : `Dear ${selectedLead.leadName},`;
-    const credibility =
-      bricks?.credibility ?? `We are ${profile.clubName}. We represent students and run events that reach the broader campus community.`;
-    const meatForLead = selectedLead.meatOverride ?? getMeatFromFocus(activeFocus);
-    const cta = selectedLead.cta ?? bricks?.cta ?? 'Would you be open to a short call?';
-    const fullDraft = [
-      `To: ${selectedLead.contactEmail ?? ''}`,
-      '',
-      greetingText,
-      '',
-      selectedLead.hook?.trim() ?? '',
-      '',
-      credibility.trim(),
-      '',
-      meatForLead.trim(),
-      '',
-      cta.trim(),
-      '',
-      'Best,',
-      '[Your name]',
-    ].join('\n');
-    const leads = activeFocus.leads ?? [];
-    const updatedLeads = leads.map((l) =>
-      l.id === selectedLead.id ? { ...l, draftText: fullDraft } : l
-    );
-    updateFocus(activeFocus.id, { leads: updatedLeads });
+  const handleSend = useCallback(async (messageOverride?: string) => {
+    const text = (messageOverride !== undefined && messageOverride !== '') ? messageOverride : input.trim();
+    if (!text || isLoading) return;
+    const userMsgId = crypto.randomUUID();
     setMessages((prev) => [
       ...prev,
-      { id: `a-${Date.now()}`, role: 'agent', text: 'Draft saved.' },
+      { id: userMsgId, role: 'user', text },
     ]);
-  };
-
-  const handleInlineRegenerateHook = async () => {
-    if (!selectedLead || isRegeneratingHook) return;
-    setIsRegeneratingHook(true);
-    pushLog('> Regenerating hook...');
-    try {
-      const hookInstructions = activeFocus?.templateBricks?.hookInstructions ?? '';
-      const { hook } = await generateHook(
-        selectedLead.companyName,
-        profile.interests,
-        hookInstructions,
-        'professional'
-      );
-      pushHook(hook);
-      setMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: 'agent', text: 'Hook updated in the draft.' },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: 'agent', text: 'Failed to regenerate hook.' },
-      ]);
-    } finally {
-      setIsRegeneratingHook(false);
-      pushLog('> Done.');
-    }
-  };
-
-  const handleApplyTemplateChanges = () => {
-    if (!templateModalFocusId || !lastSuggestedBricks) return;
-    const focus = getFocus(templateModalFocusId);
-    const current = focus?.templateBricks;
-    if (!current) return;
-    const merged: FocusTemplateBricks = {
-      ...current,
-      ...lastSuggestedBricks,
-    };
-    applySuggestedBricks(merged);
-    setMessages((prev) => [
-      ...prev,
-      { id: `a-${Date.now()}`, role: 'agent', text: 'Template updated. You can save from the modal.' },
-    ]);
-    setLastSuggestedBricks(null);
-  };
-
-  const handleDeepResearch = async () => {
-    if (!selectedLead || isDeepResearching) return;
-    setIsDeepResearching(true);
-    pushLog(`> Deep research: ${selectedLead.companyName}...`);
-    try {
-      const bullets = await deepResearchLead(selectedLead, activeFocus?.name ?? undefined);
-      const text = bullets.map((b) => `- ${b}`).join("\n");
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: "agent",
-          text: `Deep research: ${selectedLead.companyName}\n\n${text}`,
-          actions: [
-            { id: "regen-hook", label: "Regenerate Hook", type: "regenerate_hook" },
-            { id: "save-draft", label: "Save to Draft", type: "save_to_draft" },
-          ],
-        },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: "agent", text: "Deep research failed. Please try again." },
-      ]);
-      pushLog('> Error.');
-    } finally {
-      setIsDeepResearching(false);
-      pushLog('> Done.');
-    }
-  };
-
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isLoading || paused) return;
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text },
-    ]);
-    setInput('');
+    if (messageOverride === undefined) setInput('');
     setIsLoading(true);
     pushLog('> Sending...');
     try {
-      // Convert messages to LLM format
-      const llmMessages: LLMMessage[] = messages.map(m => ({
-        role: m.role === 'agent' ? 'assistant' : 'user',
-        content: m.text
-      }));
-      llmMessages.push({ role: 'user', content: text });
+      // Build initial LLM messages from conversation + this message
+      let llmMessages: LLMMessage[] = [
+        ...messages.map(m => ({
+          role: (m.role === 'agent' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: m.text
+        })),
+        { role: 'user' as const, content: text }
+      ];
 
-      const result = await createLLMChat({
-        messages: llmMessages,
-        context: {
-          activeFocus: activeFocus ?? null,
-          selectedLead: selectedLead ?? null,
-          clubProfile: profile
-        },
-        functions: true,
-        useSDK: false // Use fetch by default
-      });
+      const context = {
+        activeFocus: activeFocus ?? null,
+        selectedLead: selectedLead ?? null,
+        clubProfile: profile,
+        focuses,
+        updateFocus,
+        setActiveFocus,
+      };
 
-      // Check for proper function call OR parse from text (fallback)
-      let functionCall = result.functionCall;
-      let displayText = result.text;
+      let lastNavigateTo: string | undefined;
+      let iteration = 0;
 
-      if (!functionCall && result.text) {
-        // Try to parse function calls from the text (fallback for malformed responses)
-        const parsed = parseFunctionCallsFromText(result.text);
-        if (parsed.functionCalls.length > 0) {
-          functionCall = parsed.functionCalls[0];
-          displayText = parsed.cleanText;
-          pushLog('> Parsed function from text');
-        }
-      }
-
-      // If we have a function call (from API or parsed), execute it with modal
-      if (functionCall) {
-        pushLog(`> Executing: ${functionCall.name}`);
-        
-        // Open modal with executing state
-        setExecutionModal({
-          isOpen: true,
-          functionName: functionCall.name,
-          functionArgs: functionCall.arguments,
-          status: 'executing',
+      // Agent loop: chain tool calls until text-only response or max iterations
+      while (iteration < MAX_AGENT_ITERATIONS) {
+        iteration++;
+        const result = await createLLMChat({
+          messages: llmMessages,
+          context,
+          functions: true,
+          useSDK: false
         });
 
-        const execution = await executeAgentFunction(
-          functionCall.name,
-          functionCall.arguments,
-          { 
-            activeFocus, 
-            selectedLead, 
-            clubProfile: profile,
-            // Pass focus management methods for agentic functions
-            focuses,
-            updateFocus,
-            setActiveFocus,
-          }
-        );
+        // Prefer functionCalls (multi-call) over single functionCall
+        const functionCalls = result.functionCalls ?? (result.functionCall ? [result.functionCall] : []);
+        let toolCallIds = result.toolCallIds ?? [];
+        while (toolCallIds.length < functionCalls.length) {
+          toolCallIds = [...toolCallIds, `call_${toolCallIds.length}`];
+        }
 
-        // Update modal with result
+        // Fallback: parse from text if API didn't return structured tool calls
+        let displayText = result.text;
+        let callsToExecute = functionCalls;
+        let idsToUse = toolCallIds;
+
+        if (callsToExecute.length === 0 && result.text) {
+          const parsed = parseFunctionCallsFromText(result.text);
+          if (parsed.functionCalls.length > 0) {
+            callsToExecute = parsed.functionCalls;
+            displayText = parsed.cleanText;
+            idsToUse = callsToExecute.map((_, i) => `call_fallback_${i}`);
+            pushLog('> Parsed function(s) from text');
+          }
+        }
+
+        if (callsToExecute.length === 0) {
+          // Text-only response - done
+          if (displayText) {
+            setMessages((prev) => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'agent',
+              text: displayText
+            }]);
+          }
+          pushLog('> Response received.');
+          break;
+        }
+
+        // Execute all tool calls sequentially
+        pushLog(`> Executing ${callsToExecute.length} function(s)...`);
+
+        const toolResults: Array<{ id: string; content: string }> = [];
+        const executionMessages: string[] = [];
+        let hasError = false;
+
+        for (let i = 0; i < callsToExecute.length; i++) {
+          const fc = callsToExecute[i];
+          const toolId = idsToUse[i] ?? `call_${i}`;
+
+          setExecutionModal({
+            isOpen: true,
+            functionName: fc.name,
+            functionArgs: fc.arguments,
+            status: 'executing',
+            currentIndex: i + 1,
+            totalCount: callsToExecute.length,
+          });
+
+          const execution = await executeAgentFunction(fc.name, fc.arguments, context);
+
+          toolResults.push({
+            id: toolId,
+            content: JSON.stringify({
+              success: execution.success,
+              message: execution.message,
+              result: execution.result,
+            }),
+          });
+          executionMessages.push(execution.message);
+          if (execution.navigateTo) lastNavigateTo = execution.navigateTo;
+          if (!execution.success) hasError = true;
+        }
+
         setExecutionModal(prev => ({
           ...prev,
-          status: execution.success ? 'success' : 'error',
-          resultMessage: execution.message,
+          status: hasError ? 'error' : 'success',
+          resultMessage: executionMessages.join('\n\n'),
         }));
-        
+
+        // Build assistant message with tool_calls for chaining
+        const toolCallsForAssistant: LLMToolCall[] = callsToExecute.map((fc, i) => ({
+          id: idsToUse[i] ?? `call_${i}`,
+          type: 'function',
+          function: { name: fc.name, arguments: JSON.stringify(fc.arguments) },
+        }));
+
+        llmMessages = [
+          ...llmMessages,
+          {
+            role: 'assistant' as const,
+            content: result.text || '',
+            tool_calls: toolCallsForAssistant,
+          },
+          ...toolResults.map(tr => ({
+            role: 'tool' as const,
+            tool_call_id: tr.id,
+            content: tr.content,
+          })),
+        ];
+
+        // Add user-facing message for this round of executions
+        const combinedMessage = executionMessages.join('\n\n');
         const actions: Array<{ id: string; label: string; type: string }> = [];
-        if (execution.success && execution.navigateTo) {
-          // Generate appropriate label based on navigation target
-          const navLabel = execution.navigateTo === '/agents' ? 'View in Agents Tab' 
-            : execution.navigateTo === '/sponsors' ? 'View in Sponsors Tab'
-            : execution.navigateTo === '/clubs' ? 'View in Clubs Tab'
+        if (lastNavigateTo && !hasError) {
+          const navLabel = lastNavigateTo === '/agents' ? 'View in Agents Tab'
+            : lastNavigateTo === '/sponsors' ? 'View in Sponsors Tab'
+            : lastNavigateTo === '/clubs' ? 'View in Clubs Tab'
             : 'View Result';
-          actions.push({ id: 'view-result', label: navLabel, type: 'navigate', route: execution.navigateTo });
+          actions.push({ id: 'view-result', label: navLabel, type: 'navigate', route: lastNavigateTo } as any);
         }
 
         setMessages((prev) => [...prev, {
-          id: `a-${Date.now()}`,
+          id: crypto.randomUUID(),
           role: 'agent',
-          text: execution.message,
+          text: combinedMessage,
           actions: actions.length > 0 ? actions : undefined
         }]);
 
-        // Auto-navigate after successful function execution
-        if (execution.success && execution.navigateTo) {
-          // Small delay to let modal show success before navigating
-          setTimeout(() => {
-            navigate(execution.navigateTo!);
-          }, 1500);
-        }
+        pushLog('> Tool results sent, continuing...');
+      }
 
-        pushLog('> Done.');
-      } else if (displayText) {
-        // Regular text response (show cleaned text if we removed failed function parsing)
-        setMessages((prev) => [...prev, {
-          id: `a-${Date.now()}`,
-          role: 'agent',
-          text: displayText
-        }]);
-        pushLog('> Response received.');
+      if (iteration >= MAX_AGENT_ITERATIONS) {
+        pushLog('> Max iterations reached.');
+      }
+
+      // Auto-navigate after successful execution
+      if (lastNavigateTo) {
+        setTimeout(() => navigate(lastNavigateTo!), 1500);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Connection error';
       setMessages((prev) => [...prev, {
-        id: `a-${Date.now()}`,
+        id: crypto.randomUUID(),
         role: 'agent',
         text: `⚠ ${errorMsg}`
       }]);
-      // Close modal with error if it was open
-      setExecutionModal(prev => 
+      setExecutionModal(prev =>
         prev.isOpen ? { ...prev, status: 'error', resultMessage: errorMsg } : prev
       );
       pushLog('> Error.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [messages, activeFocus, selectedLead, profile, focuses, updateFocus, setActiveFocus, navigate, isLoading, input]);
 
-  const handleClearContext = () => {
-    setMessages([]);
-    setSystemLog([]);
-    setPaused(false);
-  };
+  handleSendRef.current = handleSend;
 
-  const handleStubAction = (label: string) => () => {
-    setMessages((prev) => [
-      ...prev,
-      { id: `a-${Date.now()}`, role: 'agent', text: `${label}: Not yet implemented. Use the chat for now.` },
-    ]);
-  };
+  const closeExecutionModal = useCallback(() => {
+    setExecutionModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
 
-  const isProcessing = isLoading || isDeepResearching || isAnalyzing || isRegeneratingHook;
-  const modeLabel = paused ? 'AGENT: PAUSED' : `MODE: [ ${AGENT_MODE_LABELS[mode]} ]`;
+  const isProcessing = isLoading;
 
   return (
     <div
@@ -419,7 +298,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
       <header className="shrink-0 px-3 py-2 border-b border-neutral-200 flex items-center justify-between gap-2 bg-neutral-50/80">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-mono uppercase text-neutral-600 truncate">
-            {modeLabel}
+            Agent
           </p>
           <p className="text-[10px] font-mono uppercase text-neutral-500 truncate mt-0.5">
             {activeFocus?.name ?? 'No focus'}
@@ -470,9 +349,6 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
                         size="sm"
                         className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100"
                         onClick={() => {
-                          if (a.type === 'apply_template_changes') handleApplyTemplateChanges();
-                          if (a.type === 'regenerate_hook') handleInlineRegenerateHook();
-                          if (a.type === 'save_to_draft') handleSaveToDraft();
                           if (a.type === 'navigate_agents') navigate('/agents');
                           if (a.type === 'navigate' && (a as any).route) navigate((a as any).route);
                         }}
@@ -507,120 +383,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
         </div>
       </div>
 
-      <footer className="shrink-0 p-3 border-t border-neutral-200 space-y-2 bg-neutral-50/50">
-        <div className="flex flex-wrap gap-1">
-          {mode === 'discovery' && (
-            <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Identify Leads')}>
-                [Identify Leads]
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Verify Contact')}>
-                [Verify Contact]
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Score Leads')}>
-                [Score Leads]
-              </Button>
-            </>
-          )}
-          {mode === 'research' && selectedLead && (
-            <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleDeepResearch} disabled={isDeepResearching}>
-                {isDeepResearching ? "..." : "[Deep Research]"}
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Find Connection')}>
-                [Find Connection]
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleInlineRegenerateHook} disabled={isRegeneratingHook}>
-                {isRegeneratingHook ? "..." : "[Generate Hook]"}
-              </Button>
-            </>
-          )}
-          {mode === 'drafting' && templateModalFocusId && (
-            <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Shorten/Expand')}>
-                [Shorten/Expand]
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Change Tone')}>
-                [Change Tone]
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleAnalyzeStructure} disabled={isAnalyzing}>
-                {isAnalyzing ? "..." : "[Check Logic]"}
-              </Button>
-            </>
-          )}
-          {mode === 'strategy' && (
-            <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Analyze Drive')}>
-                [Analyze Drive]
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Map Mission')}>
-                [Map Mission]
-              </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Suggest Goal')}>
-                [Suggest Goal]
-              </Button>
-            </>
-          )}
-        </div>
-        <div className="relative" ref={modeMenuRef}>
-          <Button
-            variant="outline"
-            size="sm"
-            className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100 w-full justify-between bg-white"
-            onClick={() => setModeMenuOpen((o) => !o)}
-          >
-            <span>Mode: {modeOverride ? AGENT_MODE_LABELS[mode] + ' (override)' : 'Auto'}</span>
-            <span aria-hidden>▾</span>
-          </Button>
-          {modeMenuOpen && (
-            <div className="absolute bottom-full left-0 right-0 mb-1 py-1 rounded-sm border border-neutral-200 bg-white shadow-lg z-10">
-              <button
-                type="button"
-                className={cn(
-                  'w-full px-3 py-2 text-left text-xs font-mono',
-                  !modeOverride ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-700 hover:bg-neutral-50'
-                )}
-                onClick={() => { setModeOverride(null); setModeMenuOpen(false); }}
-              >
-                Auto
-              </button>
-              {AGENT_MODES.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={cn(
-                    'w-full px-3 py-2 text-left text-xs font-mono',
-                    modeOverride === m ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-700 hover:bg-neutral-50'
-                  )}
-                  onClick={() => { setModeOverride(m); setModeMenuOpen(false); }}
-                >
-                  <span className="block">{AGENT_MODE_LABELS[m]}</span>
-                  <span className="block text-[10px] text-neutral-500 font-normal mt-0.5">
-                    {AGENT_MODE_DESCRIPTIONS[m]}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100 flex-1"
-            onClick={() => setPaused((p) => !p)}
-          >
-            {paused ? '[Resume Agent]' : '[Pause Agent]'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100"
-            onClick={handleClearContext}
-          >
-            [Clear Context]
-          </Button>
-        </div>
+      <footer className="shrink-0 p-3 border-t border-neutral-200 bg-neutral-50/50">
         <div className="flex gap-2">
           <Input
             className="flex-1 font-mono text-sm rounded-sm bg-white border-neutral-300 text-neutral-900 placeholder:text-neutral-500"
@@ -633,13 +396,12 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
                 handleSend();
               }
             }}
-            disabled={paused}
           />
           <Button
             size="sm"
             className="font-mono rounded-sm bg-neutral-900 text-white hover:bg-neutral-800 border-0"
             onClick={handleSend}
-            disabled={!input.trim() || isLoading || paused}
+            disabled={!input.trim() || isLoading}
             data-agent-submit
           >
             {isLoading ? '...' : 'Send'}
@@ -654,7 +416,9 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
         functionArgs={executionModal.functionArgs}
         status={executionModal.status}
         resultMessage={executionModal.resultMessage}
-        onClose={() => setExecutionModal(prev => ({ ...prev, isOpen: false }))}
+        currentIndex={executionModal.currentIndex}
+        totalCount={executionModal.totalCount}
+        onClose={closeExecutionModal}
       />
     </div>
   );

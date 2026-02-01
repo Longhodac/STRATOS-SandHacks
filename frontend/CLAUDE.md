@@ -45,7 +45,7 @@ This file provides persistent, project-specific context for Claude Code while wo
 ├── services/
 │   ├── llmProvider.ts        # Groq LLM service
 │   ├── agentFunctions.ts     # Function call executor
-│   └── geminiService.ts      # Mock utility functions
+│   └── llmProvider.ts        # Groq LLM with function calling
 ├── views/
 │   ├── Home.tsx              # Home/dashboard view
 │   ├── Clubs.tsx             # Club collaboration management

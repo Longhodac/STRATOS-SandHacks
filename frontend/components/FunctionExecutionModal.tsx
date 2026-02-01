@@ -11,6 +11,8 @@ export interface FunctionExecutionModalProps {
   functionArgs: Record<string, any> | null;
   status: ExecutionStatus;
   resultMessage?: string;
+  currentIndex?: number;
+  totalCount?: number;
   onClose: () => void;
 }
 
@@ -20,6 +22,8 @@ const FunctionExecutionModal: React.FC<FunctionExecutionModalProps> = ({
   functionArgs,
   status,
   resultMessage,
+  currentIndex = 1,
+  totalCount = 1,
   onClose,
 }) => {
   // Auto-close after success (3 seconds)
@@ -87,7 +91,17 @@ const FunctionExecutionModal: React.FC<FunctionExecutionModalProps> = ({
             </span>
             <div>
               <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wide">
-                {status === 'executing' ? 'Executing Function' : status === 'success' ? 'Function Complete' : status === 'error' ? 'Function Error' : 'Function Call'}
+                {status === 'executing'
+                  ? totalCount > 1
+                    ? `Executing Function ${currentIndex}/${totalCount}`
+                    : 'Executing Function'
+                  : status === 'success'
+                    ? totalCount > 1
+                      ? `All ${totalCount} Functions Complete`
+                      : 'Function Complete'
+                    : status === 'error'
+                      ? 'Function Error'
+                      : 'Function Call'}
               </h2>
               <p className={cn('text-xs font-mono', config.color)}>{config.label}</p>
             </div>
@@ -135,7 +149,20 @@ const FunctionExecutionModal: React.FC<FunctionExecutionModalProps> = ({
           )}
 
           {/* Progress Bar for Executing */}
-          {status === 'executing' && (
+          {status === 'executing' && totalCount > 1 && (
+            <div>
+              <p className="text-[10px] uppercase text-neutral-500 font-mono mb-1">
+                Progress {currentIndex} / {totalCount}
+              </p>
+              <div className="relative h-2 bg-neutral-200 rounded-full overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 bg-blue-600 transition-all duration-300"
+                  style={{ width: `${(currentIndex / totalCount) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {status === 'executing' && totalCount === 1 && (
             <div className="relative h-1 bg-neutral-200 rounded-full overflow-hidden">
               <div className="absolute inset-0 bg-blue-500 animate-pulse" />
               <div className="absolute h-full w-1/3 bg-blue-600 animate-[slide_1s_ease-in-out_infinite]" />

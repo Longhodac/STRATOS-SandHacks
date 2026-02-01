@@ -1,10 +1,11 @@
 /**
  * Parse raw function call syntax from LLM text responses
  * Handles cases where LLM outputs function calls in text instead of using proper tool_calls
+ * Uses balanced-brace matching to support nested JSON in arguments.
  */
 
-// Match patterns like: (function=name>{json}</function>)
-const FUNCTION_REGEX = /\(function=(\w+)>(\{.*?\})<\/function\)/gs;
+// Match opening pattern: (function=name>{
+const FUNCTION_START_REGEX = /\(function=(\w+)>\s*\{/g;
 
 export interface ParsedFunctionCall {
   name: string;
@@ -17,45 +18,104 @@ export interface ParseResult {
 }
 
 /**
+ * Extract a balanced JSON object starting at startIndex (position of opening {).
+ * Returns { object, endIndex } or null if invalid.
+ */
+function extractBalancedJson(
+  text: string,
+  startIndex: number
+): { object: Record<string, any>; endIndex: number } | null {
+  let depth = 0;
+  let i = startIndex;
+  const start = startIndex;
+
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '{') {
+      depth++;
+      i++;
+    } else if (c === '}') {
+      depth--;
+      i++;
+      if (depth === 0) {
+        const slice = text.slice(start, i);
+        try {
+          const object = JSON.parse(slice);
+          return { object, endIndex: i };
+        } catch {
+          return null;
+        }
+      }
+    } else if (c === '"' || c === "'") {
+      const quote = c;
+      i++;
+      while (i < text.length) {
+        if (text[i] === '\\') i += 2;
+        else if (text[i] === quote) {
+          i++;
+          break;
+        } else i++;
+      }
+    } else {
+      i++;
+    }
+  }
+  return null;
+}
+
+function findClosingTag(text: string, fromIndex: number): number {
+  const tag = '</function)';
+  const idx = text.indexOf(tag, fromIndex);
+  return idx === -1 ? -1 : idx + tag.length;
+}
+
+/**
  * Parse function calls from text and return clean text without the function syntax
  */
 export function parseFunctionCallsFromText(text: string): ParseResult {
   const functionCalls: ParsedFunctionCall[] = [];
-  let cleanText = text;
+  const toRemove: Array<[number, number]> = [];
 
-  // Reset regex state
-  FUNCTION_REGEX.lastIndex = 0;
-
+  FUNCTION_START_REGEX.lastIndex = 0;
   let match;
-  while ((match = FUNCTION_REGEX.exec(text)) !== null) {
-    try {
-      const name = match[1];
-      const argsString = match[2];
-      const args = JSON.parse(argsString);
-      functionCalls.push({ name, arguments: args });
-      // Remove the function call syntax from the text
-      cleanText = cleanText.replace(match[0], '');
-    } catch (e) {
-      // Invalid JSON, skip this match but log it
-      console.warn('[parseFunctionCalls] Failed to parse:', match[0], e);
+
+  while ((match = FUNCTION_START_REGEX.exec(text)) !== null) {
+    const name = match[1];
+    const afterBrace = match.index + match[0].length;
+    const extracted = extractBalancedJson(text, afterBrace - 1);
+    if (!extracted) {
+      console.warn('[parseFunctionCalls] Invalid JSON for function:', name);
+      continue;
     }
+    const endOfTag = findClosingTag(text, extracted.endIndex);
+    if (endOfTag === -1) {
+      console.warn('[parseFunctionCalls] No closing </function>) for:', name);
+      continue;
+    }
+    functionCalls.push({ name, arguments: extracted.object });
+    toRemove.push([match.index, endOfTag]);
   }
 
-  // Clean up extra whitespace and newlines left after removing function calls
-  cleanText = cleanText
-    .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with 2
-    .replace(/^\s+|\s+$/g, '') // Trim start and end
+  let result = text;
+  for (let i = toRemove.length - 1; i >= 0; i--) {
+    const [a, b] = toRemove[i];
+    result = result.slice(0, a) + result.slice(b);
+  }
+
+  result = result
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '')
     .trim();
 
-  return { cleanText, functionCalls };
+  return { cleanText: result, functionCalls };
 }
 
 /**
  * Check if text contains any function call syntax
  */
 export function containsFunctionCalls(text: string): boolean {
-  FUNCTION_REGEX.lastIndex = 0;
-  return FUNCTION_REGEX.test(text);
+  FUNCTION_START_REGEX.lastIndex = 0;
+  return FUNCTION_START_REGEX.test(text);
 }
 
 /**

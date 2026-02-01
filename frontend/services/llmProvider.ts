@@ -107,46 +107,6 @@ const AGENT_FUNCTIONS = [
   {
     type: 'function',
     function: {
-      name: 'generate_hook',
-      description: 'Generate a personalized opening hook for outreach to the selected lead/company. Use this when the user wants to create, generate, or write a hook or opening line.',
-      parameters: {
-        type: 'object',
-        properties: {
-          companyName: {
-            type: 'string',
-            description: 'Name of the company',
-          },
-          tone: {
-            type: 'string',
-            enum: ['professional', 'short_punchy', 'student_to_recruiter'],
-            description: 'Tone of the hook',
-            default: 'professional',
-          },
-        },
-        required: ['companyName'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'deep_research_lead',
-      description: 'Perform deep research on the currently selected lead to find detailed insights and partnership opportunities. Use this when the user wants detailed analysis or deep dive on a lead.',
-      parameters: {
-        type: 'object',
-        properties: {
-          leadId: {
-            type: 'string',
-            description: 'ID of the lead to research (uses currently selected lead if not provided)',
-          },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'add_to_focus',
       description: 'Add a company or sponsor to a specific focus/objective. Use this when the user wants to add a company to their focus, add a sponsor, or add a lead to their outreach list.',
       parameters: {
@@ -231,14 +191,20 @@ async function callGroqWithFetch(
     throw new Error('GROQ_API_KEY not configured. Add it to .env.local');
   }
 
-  // Build request body - exclude unsupported fields
+  // Build request body - support tool role and assistant tool_calls
   const body: any = {
     model: config.model,
-    messages: messages.map(m => ({
-      role: m.role,
-      content: m.content,
-      // DO NOT include 'name' field - not supported by Groq
-    })),
+    messages: messages.map((m) => {
+      const base: Record<string, any> = { role: m.role, content: m.content ?? '' };
+      if (m.role === 'tool' && m.tool_call_id) {
+        base.tool_call_id = m.tool_call_id;
+      }
+      if (m.role === 'assistant' && m.tool_calls?.length) {
+        base.tool_calls = m.tool_calls;
+        base.content = m.content ?? null;
+      }
+      return base;
+    }),
     temperature: config.temperature ?? 0.7,
     max_tokens: config.maxTokens ?? 1024,
     n: 1, // Always 1
@@ -271,16 +237,32 @@ async function callGroqWithFetch(
     throw new Error('No response from Groq');
   }
 
-  // Check for function call
+  // Parse all tool calls for multiple and chained tool calling
   const toolCalls = choice.message?.tool_calls;
   if (toolCalls && toolCalls.length > 0) {
-    const toolCall = toolCalls[0];
+    const functionCalls: LLMFunctionCall[] = [];
+    const toolCallIds: string[] = [];
+
+    for (const toolCall of toolCalls) {
+      let args: Record<string, any>;
+      try {
+        args = JSON.parse(toolCall.function.arguments);
+      } catch (e) {
+        console.error('Failed to parse function arguments:', toolCall.function.arguments);
+        throw new Error('LLM returned invalid function arguments');
+      }
+      functionCalls.push({
+        name: toolCall.function.name,
+        arguments: args,
+      });
+      toolCallIds.push(toolCall.id);
+    }
+
     return {
       text: choice.message?.content || '',
-      functionCall: {
-        name: toolCall.function.name,
-        arguments: JSON.parse(toolCall.function.arguments),
-      },
+      functionCall: functionCalls[0],
+      functionCalls,
+      toolCallIds,
     };
   }
 
@@ -304,9 +286,22 @@ async function callGroqWithSDK(
 
   const groq = new Groq({ apiKey, dangerouslyAllowBrowser: true });
 
+  // Serialize messages for SDK (support tool role and assistant tool_calls)
+  const serializedMessages = messages.map((m) => {
+    const base: Record<string, any> = { role: m.role, content: m.content ?? '' };
+    if (m.role === 'tool' && m.tool_call_id) {
+      base.tool_call_id = m.tool_call_id;
+    }
+    if (m.role === 'assistant' && m.tool_calls?.length) {
+      base.tool_calls = m.tool_calls;
+      base.content = m.content ?? null;
+    }
+    return base;
+  });
+
   const params: any = {
     model: config.model,
-    messages: messages as any,
+    messages: serializedMessages,
     temperature: config.temperature ?? 0.7,
     max_tokens: config.maxTokens ?? 1024,
   };
@@ -323,16 +318,32 @@ async function callGroqWithSDK(
     throw new Error('No response from Groq');
   }
 
-  // Check for function call
+  // Parse all tool calls for multiple and chained tool calling
   const toolCalls = choice.message?.tool_calls;
   if (toolCalls && toolCalls.length > 0) {
-    const toolCall = toolCalls[0];
+    const functionCalls: LLMFunctionCall[] = [];
+    const toolCallIds: string[] = [];
+
+    for (const toolCall of toolCalls) {
+      let args: Record<string, any>;
+      try {
+        args = JSON.parse(toolCall.function.arguments);
+      } catch (e) {
+        console.error('Failed to parse function arguments:', toolCall.function.arguments);
+        throw new Error('LLM returned invalid function arguments');
+      }
+      functionCalls.push({
+        name: toolCall.function.name,
+        arguments: args,
+      });
+      toolCallIds.push(toolCall.id);
+    }
+
     return {
       text: choice.message?.content || '',
-      functionCall: {
-        name: toolCall.function.name,
-        arguments: JSON.parse(toolCall.function.arguments),
-      },
+      functionCall: functionCalls[0],
+      functionCalls,
+      toolCallIds,
     };
   }
 

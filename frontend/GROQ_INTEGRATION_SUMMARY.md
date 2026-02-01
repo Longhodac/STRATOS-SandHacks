@@ -15,7 +15,7 @@ All tasks from the integration plan have been successfully completed. The Groq L
 
 1. **`frontend/package.json`** - Added groq-sdk dependency
 2. **`frontend/types.ts`** - Added LLM-related type definitions
-3. **`frontend/services/geminiService.ts`** - Removed mock chat, kept utilities
+3. **`frontend/services/geminiService.ts`** - Removed; hook/research/analyze utilities no longer used
 4. **`frontend/components/AgentSidebar.tsx`** - Integrated LLM provider with function calling
 5. **`frontend/views/Settings.tsx`** - Added LLM provider configuration UI
 6. **`frontend/App.tsx`** - Added LLMConfigProvider to context hierarchy

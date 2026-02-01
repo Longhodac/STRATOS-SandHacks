@@ -241,9 +241,20 @@ export interface LLMConfig {
   maxTokens?: number;
 }
 
+/** OpenAI/Groq tool call format for assistant messages */
+export interface LLMToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
 export interface LLMMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
+  /** For tool role: the ID of the tool call this result belongs to */
+  tool_call_id?: string;
+  /** For assistant role: tool calls made by the model */
+  tool_calls?: LLMToolCall[];
 }
 
 export interface LLMFunctionCall {
@@ -254,6 +265,8 @@ export interface LLMFunctionCall {
 export interface LLMResponse {
   text: string;
   functionCall?: LLMFunctionCall;
+  functionCalls?: LLMFunctionCall[];
+  toolCallIds?: string[];
 }
 
 export interface AgentFunctionContext {
