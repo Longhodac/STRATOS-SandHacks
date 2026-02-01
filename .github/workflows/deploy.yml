@@ -33,7 +33,7 @@ jobs:
       - name: Install and build
         working-directory: frontend
         env:
-          BASE_PATH: /${{ github.event.repository.name }}/
+          BASE_PATH: /STRATOS-SandHacks/
         run: |
           npm ci
           npm run build
