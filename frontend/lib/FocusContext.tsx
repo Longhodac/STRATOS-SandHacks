@@ -21,9 +21,9 @@ const DEFAULT_GOAL: ActiveGoal = {
 };
 
 const DEFAULT_LEADS: Lead[] = [
-  { id: '1', confidenceScore: 92, companyName: 'Acme Labs', leadName: 'Sarah Chen', draftReady: true, tier: 1, contactEmail: 'marketing@acmelabs.com' },
-  { id: '2', confidenceScore: 88, companyName: 'TechFlow Inc', leadName: 'Marcus Webb', draftReady: true, tier: 1, contactEmail: 'partnerships@techflow.com' },
-  { id: '3', confidenceScore: 85, companyName: 'Local Pizza Co', leadName: 'Jen Park', draftReady: true, tier: 1, contactEmail: 'jen@localpizza.com' },
+  { id: '1', confidenceScore: 92, companyName: 'Acme Labs', leadName: 'Sarah Chen', draftReady: true, tier: 1, contactEmail: 'marketing@acmelabs.com', industry: 'Tech / SaaS', funding: '$5K–$15K', contactTitle: 'Head of Marketing', verified: true },
+  { id: '2', confidenceScore: 88, companyName: 'TechFlow Inc', leadName: 'Marcus Webb', draftReady: true, tier: 1, contactEmail: 'partnerships@techflow.com', industry: 'Software', funding: '$10K–$25K', contactTitle: 'Partnerships Lead', verified: true },
+  { id: '3', confidenceScore: 85, companyName: 'Local Pizza Co', leadName: 'Jen Park', draftReady: true, tier: 1, contactEmail: 'jen@localpizza.com', industry: 'Food & Beverage', funding: 'In-kind', contactTitle: 'Owner', verified: false },
   { id: '4', confidenceScore: 81, companyName: 'DevTools LLC', leadName: 'Alex Rivera', draftReady: true, tier: 2, contactEmail: 'alex@devtools.io' },
   { id: '5', confidenceScore: 78, companyName: 'Campus Eats', leadName: 'Jordan Lee', draftReady: true, tier: 2, contactEmail: 'jordan@campuseats.com' },
 ];

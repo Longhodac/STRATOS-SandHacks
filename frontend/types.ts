@@ -76,6 +76,10 @@ export interface Lead {
   hookReasoning?: string;
   meatOverride?: string;
   cta?: string;
+  industry?: string;
+  funding?: string;
+  contactTitle?: string;
+  verified?: boolean;
 }
 
 export interface FocusTemplateBricks {
@@ -139,6 +143,15 @@ export interface FocusStats {
 }
 
 export type FocusStatus = 'active' | 'draft' | 'paused' | 'archived';
+
+export type AgentMode = 'discovery' | 'research' | 'drafting' | 'strategy';
+
+export const AGENT_MODE_LABELS: Record<AgentMode, string> = {
+  discovery: 'HUNTER',
+  research: 'ANALYST',
+  drafting: 'WRITER',
+  strategy: 'ARCHITECT',
+};
 
 export interface Focus {
   id: string;

@@ -23,43 +23,37 @@ const AIHookBlock: React.FC<AIHookBlockProps> = ({
   className,
 }) => {
   return (
-    <div
-      className={cn(
-        'rounded-sm border-2 border-muted bg-muted/30 p-4 flex flex-col gap-3',
-        className
-      )}
-    >
+    <div className={cn('flex flex-col gap-2', className)}>
       {reasoning && (
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground bg-background/80 px-2 py-0.5 rounded">
-            Reasoning
-          </span>
-          <span className="text-xs font-mono text-muted-foreground">{reasoning}</span>
-        </div>
+        <p className="text-[11px] font-mono text-muted-foreground">{reasoning}</p>
       )}
       {editable ? (
         <Textarea
           value={hook}
           onChange={(e) => onHookChange(e.target.value)}
           placeholder="AI will generate the hook. Click New Variation to generate."
-          className="font-mono text-sm min-h-16 resize-y border-border bg-background"
+          className="font-mono text-sm min-h-24 resize-y border border-border bg-background"
           disabled={isGenerating}
         />
       ) : (
-        <p className="font-mono text-sm text-foreground whitespace-pre-wrap">{hook || '—'}</p>
+        <div className="rounded-sm border border-border bg-muted/20 p-3 font-mono text-sm text-foreground whitespace-pre-wrap">
+          {hook || '—'}
+        </div>
       )}
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="font-mono text-xs"
-          onClick={onNewVariation}
-          disabled={isGenerating}
-        >
-          New Variation
-        </Button>
-      </div>
+      {editable && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="font-mono text-xs"
+            onClick={onNewVariation}
+            disabled={isGenerating}
+          >
+            New Variation
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

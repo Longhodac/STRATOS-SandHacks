@@ -6,8 +6,11 @@ import { cn } from '@/lib/utils';
 import { useClubProfile } from '@/lib/ClubProfileContext';
 import { FocusModalProvider } from '@/lib/FocusModalContext';
 import { TemplateModalProvider } from '@/lib/TemplateModalContext';
+import { AgentSidebarProvider } from '@/lib/AgentSidebarContext';
+import { AgentModeProvider } from '@/lib/AgentModeContext';
 import FocusEditModal from '@/components/FocusEditModal';
 import TemplateEditModal from '@/components/TemplateEditModal';
+import AgentSidebar from '@/components/AgentSidebar';
 
 type NavItem =
   | { id: string; label: string; path: string; children?: never }
@@ -25,8 +28,7 @@ const navItems: NavItem[] = [
       { id: '03b', label: 'SPONSORS', path: '/sponsors' },
     ],
   },
-  { id: '04', label: 'ADVISOR', path: '/advisor' },
-  { id: '05', label: 'SETTINGS', path: '/settings' },
+  { id: '04', label: 'SETTINGS', path: '/settings' },
 ];
 
 function clubInitials(name: string): string {
@@ -43,6 +45,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalFocusId, setModalFocusId] = useState<string | null>(null);
   const [templateModalFocusId, setTemplateModalFocusId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const openFocusModal = useCallback((focusId: string | null) => {
     setModalFocusId(focusId);
@@ -61,7 +64,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <FocusModalProvider openFocusModal={openFocusModal}>
-      <TemplateModalProvider openTemplateModal={openTemplateModal}>
+      <TemplateModalProvider openTemplateModal={openTemplateModal} templateModalFocusId={templateModalFocusId}>
+      <AgentModeProvider>
+      <AgentSidebarProvider sidebarOpen={sidebarOpen}>
       <div className="flex h-screen w-full bg-background overflow-hidden font-body">
       <aside className="w-16 lg:w-64 border-r border-border bg-background flex flex-col justify-between shrink-0 z-20 transition-all duration-300">
         <div className="flex flex-col gap-2 p-3">
@@ -154,9 +159,31 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {children}
-      </main>
+      <div className="flex-1 flex min-w-0 overflow-hidden">
+        <main
+          className={cn(
+            'flex flex-col min-w-0 overflow-hidden relative',
+            sidebarOpen ? 'flex-[0_0_70%]' : 'flex-1'
+          )}
+        >
+          {children}
+        </main>
+        {sidebarOpen ? (
+          <AgentSidebar onToggle={() => setSidebarOpen(false)} />
+        ) : (
+          <div className="w-8 shrink-0 border-l border-border flex items-center justify-center bg-background">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-sm border-0"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Expand sidebar"
+            >
+              <span className="material-symbols-outlined text-base">chevron_left</span>
+            </Button>
+          </div>
+        )}
+      </div>
       <FocusEditModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -168,6 +195,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         focusId={templateModalFocusId}
       />
     </div>
+      </AgentSidebarProvider>
+      </AgentModeProvider>
       </TemplateModalProvider>
     </FocusModalProvider>
   );

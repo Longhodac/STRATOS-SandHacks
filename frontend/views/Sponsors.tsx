@@ -3,34 +3,36 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useFocus } from '@/lib/FocusContext';
 import { useClubProfile } from '@/lib/ClubProfileContext';
+import { useSelectedLead } from '@/lib/SelectedLeadContext';
+import { useAgentSidebar } from '@/lib/AgentSidebarContext';
 import { useTemplateModal } from '@/lib/TemplateModalContext';
-import { generateHook, generateAllHooks } from '@/services/geminiService';
 import { getMeatFromFocus, fillTemplate } from '@/lib/templateUtils';
 import { formatFileSize } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import FocusSwitcher from '@/components/FocusSwitcher';
-import AIHookBlock from '@/components/AIHookBlock';
 import { cn } from '@/lib/utils';
-import type { HookTone } from '@/types';
+import type { Lead } from '@/types';
 
 const MODAL_ROOT_ID = 'modal-root';
-
-const TONE_BUTTONS: { tone: HookTone; label: string }[] = [
-  { tone: 'professional', label: 'Professional' },
-  { tone: 'short_punchy', label: 'Short/Punchy' },
-  { tone: 'student_to_recruiter', label: 'Student-to-Recruiter' },
-];
 
 const Sponsors: React.FC = () => {
   const navigate = useNavigate();
   const { activeFocus, updateFocus, getAttachmentFiles, getLeadAttachmentFiles, setLeadAttachmentFiles } = useFocus();
   const { profile } = useClubProfile();
   const { openTemplateModal } = useTemplateModal();
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
-  const [isGeneratingHook, setIsGeneratingHook] = useState(false);
-  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const { selectedLeadId, setSelectedLeadId } = useSelectedLead();
+  const { sidebarOpen } = useAgentSidebar();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [addSponsorOpen, setAddSponsorOpen] = useState(false);
+  const [newCompany, setNewCompany] = useState('');
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newContactEmail, setNewContactEmail] = useState('');
+  const [newIndustry, setNewIndustry] = useState('');
+  const [newFunding, setNewFunding] = useState('');
+  const [newContactTitle, setNewContactTitle] = useState('');
   const leadFileInputRef = useRef<HTMLInputElement>(null);
 
   const leads = activeFocus?.leads ?? [];
@@ -49,83 +51,6 @@ const Sponsors: React.FC = () => {
   const meatForLead = selectedLead?.meatOverride ?? meatFromFocus;
   const templateCta = bricks?.cta ?? 'Would you be open to a short call?';
   const leadCta = selectedLead?.cta ?? templateCta;
-  const hookInstructions = bricks?.hookInstructions ?? '';
-
-  const handleGenerateHook = useCallback(async () => {
-    if (!selectedLead || !activeFocus) return;
-    setIsGeneratingHook(true);
-    try {
-      const { hook, reasoning } = await generateHook(
-        selectedLead.companyName,
-        profile.interests,
-        hookInstructions,
-        'professional'
-      );
-      const updatedLeads = leads.map((l) =>
-        l.id === selectedLead.id ? { ...l, hook, hookReasoning: reasoning } : l
-      );
-      updateFocus(activeFocus.id, { leads: updatedLeads });
-    } finally {
-      setIsGeneratingHook(false);
-    }
-  }, [selectedLead, activeFocus, leads, profile.interests, hookInstructions, updateFocus]);
-
-  const handleNewVariation = useCallback(async () => {
-    if (!selectedLead || !activeFocus) return;
-    setIsGeneratingHook(true);
-    try {
-      const { hook, reasoning } = await generateHook(
-        selectedLead.companyName,
-        profile.interests,
-        hookInstructions,
-        'professional'
-      );
-      const updatedLeads = leads.map((l) =>
-        l.id === selectedLead.id ? { ...l, hook, hookReasoning: reasoning } : l
-      );
-      updateFocus(activeFocus.id, { leads: updatedLeads });
-    } finally {
-      setIsGeneratingHook(false);
-    }
-  }, [selectedLead, activeFocus, leads, profile.interests, hookInstructions, updateFocus]);
-
-  const handleToneRewrite = useCallback(
-    async (tone: HookTone) => {
-      if (!selectedLead || !activeFocus) return;
-      setIsGeneratingHook(true);
-      try {
-        const { hook, reasoning } = await generateHook(
-          selectedLead.companyName,
-          profile.interests,
-          hookInstructions,
-          tone
-        );
-        const updatedLeads = leads.map((l) =>
-          l.id === selectedLead.id ? { ...l, hook, hookReasoning: reasoning } : l
-        );
-        updateFocus(activeFocus.id, { leads: updatedLeads });
-      } finally {
-        setIsGeneratingHook(false);
-      }
-    },
-    [selectedLead, activeFocus, leads, profile.interests, hookInstructions, updateFocus]
-  );
-
-  const handleGenerateAllHooks = useCallback(async () => {
-    if (!activeFocus || leads.length === 0) return;
-    setIsGeneratingAll(true);
-    try {
-      const results = await generateAllHooks(leads, profile.interests, hookInstructions, 'professional');
-      const byId = Object.fromEntries(results.map((r) => [r.leadId, r]));
-      const updatedLeads = leads.map((l) => {
-        const r = byId[l.id];
-        return r ? { ...l, hook: r.hook, hookReasoning: r.reasoning } : l;
-      });
-      updateFocus(activeFocus.id, { leads: updatedLeads });
-    } finally {
-      setIsGeneratingAll(false);
-    }
-  }, [activeFocus, leads, profile.interests, hookInstructions, updateFocus]);
 
   const handleHookChange = useCallback(
     (value: string) => {
@@ -196,6 +121,45 @@ const Sponsors: React.FC = () => {
     [selectedLead, activeFocus, leadAttachmentFiles, setLeadAttachmentFiles]
   );
 
+  const handleAddSponsor = useCallback(() => {
+    if (!activeFocus || !newCompany.trim() || !newLeadName.trim() || !newContactEmail.trim()) return;
+    const newLead: Lead = {
+      id: crypto.randomUUID(),
+      confidenceScore: 0,
+      companyName: newCompany.trim(),
+      leadName: newLeadName.trim(),
+      contactEmail: newContactEmail.trim(),
+      draftReady: false,
+      tier: 2,
+      industry: newIndustry.trim() || undefined,
+      funding: newFunding.trim() || undefined,
+      contactTitle: newContactTitle.trim() || undefined,
+    };
+    const updatedLeads = [...leads, newLead];
+    updateFocus(activeFocus.id, { leads: updatedLeads });
+    setSelectedLeadId(newLead.id);
+    setAddSponsorOpen(false);
+    setNewCompany('');
+    setNewLeadName('');
+    setNewContactEmail('');
+    setNewIndustry('');
+    setNewFunding('');
+    setNewContactTitle('');
+  }, [activeFocus, leads, newCompany, newLeadName, newContactEmail, newIndustry, newFunding, newContactTitle, updateFocus, setSelectedLeadId]);
+
+  const handleRemoveLead = useCallback(
+    (leadId: string) => {
+      if (!activeFocus) return;
+      const updatedLeads = leads.filter((l) => l.id !== leadId);
+      updateFocus(activeFocus.id, { leads: updatedLeads });
+      if (selectedLeadId === leadId) {
+        const next = updatedLeads[0] ?? null;
+        setSelectedLeadId(next?.id ?? null);
+      }
+    },
+    [activeFocus, leads, selectedLeadId, updateFocus, setSelectedLeadId]
+  );
+
   const allAttachmentNames = [
     ...attachmentList,
     ...attachmentFiles.map((f) => f.name),
@@ -237,29 +201,50 @@ const Sponsors: React.FC = () => {
         <header className="border-b border-border px-4 py-3 shrink-0 space-y-2">
           <FocusSwitcher onNewFocus={() => navigate('/objectives')} />
           <Button
+            type="button"
+            variant="outline"
             size="sm"
             className="w-full font-mono text-xs"
-            onClick={handleGenerateAllHooks}
-            disabled={isGeneratingAll || leads.length === 0}
+            onClick={() => setAddSponsorOpen(true)}
           >
-            Generate All Hooks
+            Add sponsor
           </Button>
         </header>
         <div className="flex-1 overflow-y-auto">
           {leads.map((lead) => (
-            <button
+            <div
               key={lead.id}
-              type="button"
-              onClick={() => setSelectedLeadId(lead.id)}
               className={cn(
-                'w-full text-left px-4 py-3 border-b border-border font-mono text-sm transition-colors',
+                'flex items-center border-b border-border',
                 selectedLead?.id === lead.id
                   ? 'bg-muted border-l-2 border-l-primary'
-                  : 'hover:bg-muted/50 border-l-2 border-l-transparent'
+                  : 'border-l-2 border-l-transparent hover:bg-muted/50'
               )}
             >
-              {lead.companyName}
-            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedLeadId(lead.id)}
+                className={cn(
+                  'flex-1 min-w-0 text-left px-4 py-3 font-mono text-sm transition-colors',
+                  sidebarOpen && selectedLead?.id === lead.id && 'ring-2 ring-white ring-inset animate-pulse'
+                )}
+              >
+                {lead.companyName}
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-destructive mr-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveLead(lead.id);
+                }}
+                aria-label={`Remove ${lead.companyName}`}
+              >
+                Remove
+              </Button>
+            </div>
           ))}
         </div>
       </div>
@@ -285,6 +270,39 @@ const Sponsors: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest font-mono">Info</h4>
+              </div>
+              <div className="grid grid-cols-2 gap-px bg-border border border-border rounded-sm overflow-hidden">
+                <Card className="rounded-none border-0 bg-background">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase mb-1 font-mono">Funding</p>
+                    <p className="text-sm font-medium text-foreground">{selectedLead.funding ?? '—'}</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-none border-0 bg-background">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase mb-1 font-mono">Industry</p>
+                    <p className="text-sm font-medium text-foreground">{selectedLead.industry ?? '—'}</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-none border-0 bg-background col-span-2">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase mb-1 font-mono">Contact</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-foreground">
+                        {selectedLead.contactTitle ? `${selectedLead.leadName}, ${selectedLead.contactTitle}` : selectedLead.leadName}
+                      </p>
+                      {selectedLead.verified && (
+                        <span className="text-[10px] text-green-500 font-mono uppercase">VERIFIED</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
             <div>
               <span className="text-[10px] font-mono uppercase text-muted-foreground">To</span>
               <p className="font-mono text-sm text-foreground mt-0.5">
@@ -299,30 +317,13 @@ const Sponsors: React.FC = () => {
 
             <div>
               <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">1. The Hook</span>
-              <p className="text-[11px] text-muted-foreground mb-2">Opening line that links the company to your club. AI-generated per lead.</p>
-              <AIHookBlock
-                reasoning={selectedLead.hookReasoning}
-                hook={selectedLead.hook ?? ''}
-                onHookChange={handleHookChange}
-                onNewVariation={handleNewVariation}
-                isGenerating={isGeneratingHook}
-                editable
+              <p className="text-[11px] text-muted-foreground mb-2">Opening line that links the company to your club.</p>
+              <Textarea
+                value={selectedLead.hook ?? ''}
+                onChange={(e) => handleHookChange(e.target.value)}
+                className="font-mono text-sm min-h-24 resize-y border border-border bg-background"
+                placeholder="Opening line that links the company to your club."
               />
-              <div className="flex flex-wrap gap-2 mt-2">
-                {TONE_BUTTONS.map(({ tone, label }) => (
-                  <Button
-                    key={tone}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="font-mono text-xs"
-                    onClick={() => handleToneRewrite(tone)}
-                    disabled={isGeneratingHook}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
             </div>
 
             <div>
@@ -442,8 +443,6 @@ const Sponsors: React.FC = () => {
               minWidth: '100vw',
               minHeight: '100vh',
               boxSizing: 'border-box',
-              position: 'absolute',
-              inset: 0,
             }}
             onClick={(e) => e.target === e.currentTarget && setPreviewOpen(false)}
             role="dialog"
@@ -478,6 +477,115 @@ const Sponsors: React.FC = () => {
                 <pre className="font-mono text-sm whitespace-pre-wrap text-left">
                   {fullDraftEmail || 'No content yet.'}
                 </pre>
+              </div>
+            </div>
+          </div>
+        );
+        return createPortal(modal, modalRoot);
+      })()}
+
+      {addSponsorOpen && (() => {
+        const modalRoot = typeof document !== 'undefined' ? document.getElementById(MODAL_ROOT_ID) : null;
+        if (!modalRoot) return null;
+        const modal = (
+          <div
+            className="flex items-center justify-center p-4"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.75)',
+              minWidth: '100vw',
+              minHeight: '100vh',
+              boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.target === e.currentTarget && setAddSponsorOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-sponsor-title"
+          >
+            <div
+              className="w-full max-w-md rounded-sm border border-neutral-200 shadow-2xl"
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#111111',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-neutral-200 px-6 py-4 flex items-center justify-between">
+                <h2 id="add-sponsor-title" className="text-sm font-mono uppercase tracking-wide font-semibold">
+                  Add sponsor
+                </h2>
+                <Button variant="ghost" size="sm" className="font-mono text-xs" onClick={() => setAddSponsorOpen(false)}>
+                  Close
+                </Button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">Company name *</label>
+                  <Input
+                    value={newCompany}
+                    onChange={(e) => setNewCompany(e.target.value)}
+                    placeholder="Acme Inc"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">Contact name *</label>
+                  <Input
+                    value={newLeadName}
+                    onChange={(e) => setNewLeadName(e.target.value)}
+                    placeholder="Jane Smith"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">Contact email *</label>
+                  <Input
+                    type="email"
+                    value={newContactEmail}
+                    onChange={(e) => setNewContactEmail(e.target.value)}
+                    placeholder="jane@acme.com"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">Industry</label>
+                  <Input
+                    value={newIndustry}
+                    onChange={(e) => setNewIndustry(e.target.value)}
+                    placeholder="Tech / SaaS"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">Funding</label>
+                  <Input
+                    value={newFunding}
+                    onChange={(e) => setNewFunding(e.target.value)}
+                    placeholder="$5K–$15K"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-muted-foreground mb-1 block">Contact title</label>
+                  <Input
+                    value={newContactTitle}
+                    onChange={(e) => setNewContactTitle(e.target.value)}
+                    placeholder="Head of Marketing"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => setAddSponsorOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="font-mono text-xs"
+                    onClick={handleAddSponsor}
+                    disabled={!newCompany.trim() || !newLeadName.trim() || !newContactEmail.trim()}
+                  >
+                    Add
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

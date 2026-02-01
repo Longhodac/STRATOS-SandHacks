@@ -29,7 +29,6 @@ const TemplateBricksEditor: React.FC<TemplateBricksEditorProps> = ({
   attachmentFiles: attachmentFilesProp,
   onAttachmentFilesChange,
 }) => {
-  const [showInstructions, setShowInstructions] = useState(false);
   const [attachmentFilesLocal, setAttachmentFilesLocal] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,26 +77,14 @@ const TemplateBricksEditor: React.FC<TemplateBricksEditorProps> = ({
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-xs font-mono uppercase text-muted-foreground">1. The Hook</span>
-          <span className="text-[10px] font-mono text-muted-foreground">AI GENERATED</span>
         </div>
         <p className="text-[11px] text-muted-foreground mb-2">{SECTION_DESCRIPTIONS.hook}</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="font-mono text-xs mb-2"
-          onClick={() => setShowInstructions(!showInstructions)}
-        >
-          Set AI Instructions
-        </Button>
-        {showInstructions && (
-          <Textarea
-            value={bricks.hookInstructions}
-            onChange={(e) => update({ hookInstructions: e.target.value })}
-            placeholder="Tell the AI how to link the company to the club (e.g. focus on technical projects, diversity stats)..."
-            className="font-mono rounded-sm min-h-20 border border-border bg-background"
-          />
-        )}
+        <Textarea
+          value={bricks.hookInstructions}
+          onChange={(e) => update({ hookInstructions: e.target.value })}
+          placeholder="Instructions for the opening line (e.g. link company to club, focus on technical projects)..."
+          className="font-mono rounded-sm min-h-20 border border-border bg-background"
+        />
       </div>
 
       <div>

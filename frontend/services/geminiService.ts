@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Chat } from "@google/genai";
-import type { Lead } from "@/types";
+import type { Lead, Focus, FocusTemplateBricks, FocusTemplateType } from "@/types";
 import type { HookTone } from "@/types";
 
 const API_KEY = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
@@ -149,3 +149,104 @@ export const createStrategyChat = (): Chat => {
     },
   });
 };
+
+export async function deepResearchLead(lead: Lead, focusName?: string): Promise<string[]> {
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Perform intensive research on this outreach lead for a school club.
+Lead: ${lead.leadName} at ${lead.companyName}${lead.contactEmail ? ` (${lead.contactEmail})` : ''}.
+${focusName ? `Focus/campaign: ${focusName}.` : ''}
+
+Return 5-10 bullet-point findings that would help tailor outreach: company recent news, initiatives, values, decision-maker context, or similar partnerships. Be specific and actionable.
+Format: one finding per line, starting with "- ". No other text.`,
+    config: {
+      temperature: 0.5,
+      maxOutputTokens: 800,
+    },
+  });
+  const text = response.text ?? "";
+  const bullets = text
+    .split("\n")
+    .map((s) => s.replace(/^\s*[-*]\s*/, "").trim())
+    .filter(Boolean);
+  return bullets.length > 0 ? bullets : [text.trim() || "No findings returned."];
+}
+
+export type AnalyzeTemplateResult = {
+  suggestions: string;
+  suggestedBricks?: Partial<FocusTemplateBricks>;
+};
+
+export async function analyzeTemplateStructure(
+  bricks: FocusTemplateBricks,
+  focusType: FocusTemplateType
+): Promise<AnalyzeTemplateResult> {
+  const typeLabel = focusType === "sponsorship" ? "sponsorship" : "collaboration";
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Analyze this outreach email template (${typeLabel} focus). Suggest concrete improvements for clarity, tone, and conversion.
+
+Current template:
+- Greeting: ${bricks.greeting}
+- Hook instructions: ${bricks.hookInstructions}
+- Credibility: ${bricks.credibility}
+- Meat (the ask): ${bricks.meat}
+- CTA: ${bricks.cta}
+
+Return a JSON object with:
+1. "suggestions": A short paragraph of 2-4 sentences with improvement suggestions.
+2. "suggestedBricks": Optional object with any of: greeting, hookInstructions, credibility, meat, cta — only include keys you want to change, with improved text. Keep the same structure (e.g. use {{lead_name}} in greeting if present).
+
+Return only the JSON, no markdown.`,
+    config: {
+      temperature: 0.4,
+      maxOutputTokens: 600,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          suggestions: { type: Type.STRING },
+          suggestedBricks: {
+            type: Type.OBJECT,
+            properties: {
+              greeting: { type: Type.STRING },
+              hookInstructions: { type: Type.STRING },
+              credibility: { type: Type.STRING },
+              meat: { type: Type.STRING },
+              cta: { type: Type.STRING },
+            },
+          },
+        },
+        required: ["suggestions"],
+      },
+    },
+  });
+  try {
+    const parsed = JSON.parse(response.text) as AnalyzeTemplateResult;
+    return {
+      suggestions: parsed.suggestions ?? "",
+      suggestedBricks: parsed.suggestedBricks,
+    };
+  } catch {
+    return { suggestions: response.text ?? "Analysis failed." };
+  }
+}
+
+export function createSidebarChat(activeFocus: Focus | null, selectedLead: Lead | null): Chat {
+  const focusCtx = activeFocus
+    ? `Active focus: "${activeFocus.name}". Ask: ${activeFocus.ask}. Target: ${activeFocus.targetProfile}.`
+    : 'No focus selected.';
+  const leadCtx = selectedLead
+    ? `Selected lead: ${selectedLead.leadName} at ${selectedLead.companyName}${selectedLead.contactEmail ? ` (${selectedLead.contactEmail})` : ''}.`
+    : 'No lead selected.';
+  return ai.chats.create({
+    model: 'gemini-3-pro-preview',
+    config: {
+      systemInstruction: `You are the STRATOS co-pilot. You help with outreach: sponsor partnerships and club collaborations.
+      You have access to the current workspace context. Be concise and actionable.
+      ${focusCtx}
+      ${leadCtx}
+      When the user is editing a draft, you can suggest hook or meat text; the user can apply it via inline buttons.`,
+    },
+  });
+}

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useFocus } from '@/lib/FocusContext';
+import { useTemplateModal } from '@/lib/TemplateModalContext';
+import { useAgentSidebar } from '@/lib/AgentSidebarContext';
 import { Button } from '@/components/ui/button';
 import TemplateBricksEditor from '@/components/TemplateBricksEditor';
 import { getDefaultTemplateBricks } from '@/lib/templateUtils';
@@ -17,9 +19,20 @@ type TemplateEditModalProps = {
 
 const TemplateEditModal: React.FC<TemplateEditModalProps> = ({ open, onClose, focusId }) => {
   const { getFocus, updateFocus, getAttachmentFiles, setAttachmentFiles } = useFocus();
+  const { registerTemplateEditor } = useTemplateModal();
+  const { sidebarOpen } = useAgentSidebar();
   const focus = focusId ? getFocus(focusId) : null;
   const [bricks, setBricks] = useState<FocusTemplateBricks>(getDefaultTemplateBricks('sponsorship'));
   const attachmentFiles = focusId ? getAttachmentFiles(focusId) : [];
+
+  useEffect(() => {
+    if (open) {
+      registerTemplateEditor((b) => setBricks(b));
+    } else {
+      registerTemplateEditor(null);
+    }
+    return () => registerTemplateEditor(null);
+  }, [open, registerTemplateEditor]);
 
   useEffect(() => {
     if (!open || !focus) return;
@@ -59,7 +72,8 @@ const TemplateEditModal: React.FC<TemplateEditModalProps> = ({ open, onClose, fo
       <div
         className={cn(
           'w-full max-w-2xl rounded-sm max-h-[90vh] flex flex-col overflow-hidden',
-          'border border-neutral-200 shadow-2xl'
+          'border border-neutral-200 shadow-2xl',
+          sidebarOpen && 'ring-2 ring-white ring-offset-2 ring-offset-transparent'
         )}
         style={{
           backgroundColor: '#ffffff',

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,28 +13,13 @@ import type {
   Lead,
   PipelineItem,
   PipelineStage,
-  AgentActivity,
 } from '@/types';
-
-const MOCK_ACTIVITY: AgentActivity[] = [
-  { id: 'a1', timestamp: new Date(), agentType: 'research', message: 'Found 3 new Marketing Managers at [CloudNine]' },
-  { id: 'a2', timestamp: new Date(), agentType: 'context', message: "Updated mission statement from 'Sponsorship_Deck_v2.pdf'" },
-  { id: 'a3', timestamp: new Date(), agentType: 'outreach', message: 'Draft ready for Sarah Chen @ Acme Labs' },
-  { id: 'a4', timestamp: new Date(), agentType: 'research', message: 'Crawling StartupHub company page' },
-];
-
 
 const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   researching: 'Researching',
   review: 'Review Required',
   waiting: 'Waiting for Reply',
   closed: 'Closed/Partnered',
-};
-
-const AGENT_LABELS: Record<AgentActivity['agentType'], string> = {
-  research: 'Research Agent',
-  context: 'Context Agent',
-  outreach: 'Outreach Agent',
 };
 
 function FocusHeader({
@@ -252,35 +237,6 @@ function OutreachPipeline({ items }: { items: PipelineItem[] }) {
   );
 }
 
-function AgentActivityLog({ activities }: { activities: AgentActivity[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [activities.length]);
-  return (
-    <div className="border-t border-border bg-card/50">
-      <div className="px-4 py-2 border-b border-border">
-        <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wide">
-          Agent Activity
-        </span>
-      </div>
-      <div
-        ref={scrollRef}
-        className="h-24 overflow-y-auto px-4 py-2 font-mono text-xs text-muted-foreground space-y-1"
-      >
-        {activities.map((a) => (
-          <div key={a.id} className="flex gap-2">
-            <span className="text-foreground/70 shrink-0">
-              [{AGENT_LABELS[a.agentType]}]:
-            </span>
-            <span>{a.message}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const Home: React.FC = () => {
   const { profile } = useClubProfile();
   const { activeFocus } = useFocus();
@@ -319,7 +275,6 @@ const Home: React.FC = () => {
           <OutreachPipeline items={activeFocus.pipeline} />
         </div>
       </div>
-      <AgentActivityLog activities={MOCK_ACTIVITY} />
     </div>
   );
 };
