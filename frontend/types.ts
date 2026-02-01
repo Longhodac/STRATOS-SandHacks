@@ -226,3 +226,42 @@ export type {
   ScrapeHistoryItem,
   HealthStatus,
 } from './services/agentsService';
+
+// ==================== LLM Provider Types ====================
+
+export type LLMProvider = 'groq';
+
+export interface LLMConfig {
+  provider: LLMProvider;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export interface LLMMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface LLMFunctionCall {
+  name: string;
+  arguments: Record<string, any>;
+}
+
+export interface LLMResponse {
+  text: string;
+  functionCall?: LLMFunctionCall;
+}
+
+export interface AgentFunctionContext {
+  activeFocus: Focus | null;
+  selectedLead: Lead | null;
+  clubProfile: ClubProfile;
+}
+
+export interface AgentFunctionResult {
+  success: boolean;
+  result: any;
+  message: string;
+  navigateTo?: string;
+}

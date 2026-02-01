@@ -6,9 +6,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useClubProfile } from '@/lib/ClubProfileContext';
+import { useLLMConfig } from '@/lib/LLMConfigContext';
+import { GROQ_MODELS } from '@/services/llmProvider';
+import type { LLMProvider } from '@/types';
 
 const Settings: React.FC = () => {
   const { profile, setProfile, addInterest, removeInterest } = useClubProfile();
+  const { config, updateConfig, resetConfig } = useLLMConfig();
   const [newInterest, setNewInterest] = useState('');
 
   const handleAddInterest = () => {
@@ -109,6 +113,80 @@ const Settings: React.FC = () => {
                 </CardContent>
               </React.Fragment>
             ))}
+          </Card>
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-bold text-foreground font-display border-b border-border pb-2">LLM Configuration</h2>
+          <p className="text-muted-foreground text-sm">Configure the Groq AI model used for the agent chat sidebar.</p>
+          <Card className="rounded-sm border-border">
+            <CardContent className="p-6 flex flex-col gap-6">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-foreground">Model</label>
+                <select
+                  className="w-full px-3 py-2 rounded-sm border border-border bg-background text-foreground font-mono text-sm"
+                  value={config.model}
+                  onChange={(e) => updateConfig({ model: e.target.value })}
+                >
+                  {Object.entries(GROQ_MODELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {config.model === 'llama-3.1-8b-instant' && 'Ultra-fast model for quick responses. Best for function calling.'}
+                  {config.model === 'llama-3.3-70b-versatile' && 'Highest quality model with better reasoning. Slower but more capable.'}
+                  {config.model === 'mixtral-8x7b-32768' && 'Large context window (32k tokens). Good for long conversations.'}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-foreground">Temperature</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={config.temperature ?? 0.7}
+                    onChange={(e) => updateConfig({ temperature: parseFloat(e.target.value) })}
+                    className="flex-1"
+                  />
+                  <span className="font-mono text-sm text-muted-foreground w-12 text-right">
+                    {(config.temperature ?? 0.7).toFixed(1)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">Lower = more focused, Higher = more creative</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-foreground">Max Tokens</label>
+                <Input
+                  type="number"
+                  className="font-mono"
+                  value={config.maxTokens ?? 1024}
+                  onChange={(e) => updateConfig({ maxTokens: parseInt(e.target.value) || 1024 })}
+                  min={128}
+                  max={4096}
+                />
+                <p className="text-xs text-muted-foreground">Maximum response length (128-4096)</p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button variant="ghost" size="sm" className="font-mono text-xs" onClick={resetConfig}>
+                  Reset to Defaults
+                </Button>
+              </div>
+
+              <div className="p-4 bg-muted/30 rounded-sm border border-border">
+                <p className="text-xs font-mono text-muted-foreground">
+                  <span className="font-bold text-foreground">API Key:</span> Set VITE_GROQ_API_KEY in your .env.local file.
+                  <br />
+                  <span className="font-bold text-foreground">Get key:</span> https://console.groq.com/keys (free tier available)
+                </p>
+              </div>
+            </CardContent>
           </Card>
         </section>
 

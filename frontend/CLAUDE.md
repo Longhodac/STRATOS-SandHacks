@@ -20,8 +20,8 @@ This file provides persistent, project-specific context for Claude Code while wo
 - shadcn/ui (new-york style, neutral base) — Button, Input, Card, Textarea, Table, Badge, Switch, Separator, ScrollArea
 
 ### AI Integration
-- Google Generative AI (@google/genai 1.39.0)
-- API key stored in .env.local as GEMINI_API_KEY
+- Groq API for LLM-powered chat with function calling
+- API key stored in .env.local as VITE_GROQ_API_KEY
 
 ### UI Guidelines
 - Dark-mode-first near-black (IDE-like), minimalist, black/white/gray.
@@ -43,7 +43,9 @@ This file provides persistent, project-specific context for Claude Code while wo
 │   ├── Layout.tsx            # Main layout (expandable OUTREACH: Clubs, Sponsors)
 │   └── ui/                   # shadcn components (button, card, input, etc.)
 ├── services/
-│   └── geminiService.ts      # Google Generative AI service
+│   ├── llmProvider.ts        # Groq LLM service
+│   ├── agentFunctions.ts     # Function call executor
+│   └── geminiService.ts      # Mock utility functions
 ├── views/
 │   ├── Home.tsx              # Home/dashboard view
 │   ├── Clubs.tsx             # Club collaboration management
@@ -53,7 +55,7 @@ This file provides persistent, project-specific context for Claude Code while wo
 ├── package.json              # Dependencies and scripts
 ├── tsconfig.json             # TypeScript config
 ├── vite.config.ts            # Vite build config
-└── .env.local                # Environment variables (GEMINI_API_KEY)
+└── .env.local                # Environment variables (VITE_GROQ_API_KEY)
 ```
 
 ## 3) Current Features
@@ -68,7 +70,7 @@ The app currently has basic navigation between different views:
 
 ### Setup
 1. Install dependencies: `npm install`
-2. Set up environment: Add GEMINI_API_KEY to .env.local
+2. Set up environment: Add VITE_GROQ_API_KEY to .env.local
 3. Run dev server: `npm run dev`
 4. Build for production: `npm run build`
 5. Preview production build: `npm run preview`
@@ -86,7 +88,7 @@ Rules:
 - Keep components simple and focused
 - Use TypeScript for type safety
 - Follow the dark minimalist UI guidelines
-- All AI interactions go through geminiService.ts
+- All AI interactions go through llmProvider.ts
 - Store only necessary state in components
 - Prefer small, reviewable changes
 

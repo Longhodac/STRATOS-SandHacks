@@ -1,17 +1,15 @@
-// Static mock service - no API key required
+// Static mock service - utility functions only
+// Chat functionality moved to llmProvider.ts
 import type { Lead, Focus, FocusTemplateBricks, FocusTemplateType } from "@/types";
 import type { HookTone } from "@/types";
-
-// Mock Chat interface
-export interface Chat {
-  sendMessage: (message: string) => Promise<{ text: string }>;
-}
 
 const TONE_PROMPTS: Record<HookTone, string> = {
   professional: "Professional and polished. One or two sentences. No slang.",
   short_punchy: "Short and punchy. One sentence. Direct and memorable.",
   student_to_recruiter: "Warm but respectful, student reaching out to a recruiter or hiring contact. Personable, one or two sentences.",
 };
+
+// ==================== Utility Functions ====================
 
 export const parseMissionData = async (text: string) => {
   // Static mock response
@@ -83,28 +81,6 @@ export const generateAllHooks = async (
   return results;
 };
 
-export const createStrategyChat = (): Chat => {
-  // Return a mock chat interface
-  return {
-    sendMessage: async (message: string) => {
-      // Static mock responses based on common questions
-      if (message.toLowerCase().includes('partner') || message.toLowerCase().includes('club')) {
-        return { 
-          text: "Consider reaching out to clubs with complementary interests. Look for organizations that share your values but have different skill sets. Joint events like hackathons or workshops can be great starting points." 
-        };
-      }
-      if (message.toLowerCase().includes('sponsor') || message.toLowerCase().includes('funding')) {
-        return { 
-          text: "For sponsorships, focus on companies that align with your club's mission. Highlight the value you bring - community reach, talent pipeline, brand visibility. Start with local companies and scale up." 
-        };
-      }
-      return { 
-        text: "I can help you with partnership strategies, club collaboration ideas, and outreach planning. What specific aspect would you like to focus on?" 
-      };
-    }
-  };
-};
-
 export async function deepResearchLead(lead: Lead, focusName?: string): Promise<string[]> {
   // Static mock response
   return [
@@ -132,54 +108,6 @@ export async function analyzeTemplateStructure(
     suggestions: `Your ${typeLabel} template looks solid. Consider making the hook more specific to each recipient and ensuring the CTA is clear and actionable. The credibility section could benefit from specific metrics or achievements.`,
     suggestedBricks: {
       cta: "Would you be available for a 15-minute call next week to discuss this opportunity?"
-    }
-  };
-}
-
-export function createSidebarChat(activeFocus: Focus | null, selectedLead: Lead | null): Chat {
-  // Return a mock chat interface with context awareness
-  const focusCtx = activeFocus
-    ? `Active focus: "${activeFocus.name}". Ask: ${activeFocus.ask}. Target: ${activeFocus.targetProfile}.`
-    : 'No focus selected.';
-  const leadCtx = selectedLead
-    ? `Selected lead: ${selectedLead.leadName} at ${selectedLead.companyName}${selectedLead.contactEmail ? ` (${selectedLead.contactEmail})` : ''}.`
-    : 'No lead selected.';
-    
-  return {
-    sendMessage: async (message: string) => {
-      const msg = message.toLowerCase();
-      
-      // Context-aware responses
-      if (msg.includes('hook') || msg.includes('opening')) {
-        if (selectedLead) {
-          return { 
-            text: `For ${selectedLead.companyName}, try opening with their recent initiatives or how their work aligns with your club's mission. Make it personal and specific.` 
-          };
-        }
-        return { text: "Select a lead first, and I can help you craft a personalized hook for them." };
-      }
-      
-      if (msg.includes('draft') || msg.includes('email')) {
-        if (activeFocus) {
-          return { 
-            text: `For your "${activeFocus.name}" focus, emphasize ${activeFocus.ask}. Keep it concise and include a clear call-to-action.` 
-          };
-        }
-        return { text: "I can help you draft an email. What's the main goal of this outreach?" };
-      }
-      
-      if (msg.includes('research')) {
-        if (selectedLead) {
-          return { 
-            text: `Key points about ${selectedLead.companyName}: They value innovation and partnerships. Look for recent news or initiatives that align with your club's goals.` 
-          };
-        }
-        return { text: "Select a lead to research, and I'll help you gather relevant insights." };
-      }
-      
-      return { 
-        text: `I'm here to help with your outreach. ${focusCtx} ${leadCtx} Ask me about hooks, drafts, or research!` 
-      };
     }
   };
 }

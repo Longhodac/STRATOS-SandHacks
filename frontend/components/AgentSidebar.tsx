@@ -8,10 +8,15 @@ import { useAgentBridge } from '@/lib/AgentBridgeContext';
 import { useAgentMode } from '@/lib/AgentModeContext';
 import { useClubProfile } from '@/lib/ClubProfileContext';
 import { getMeatFromFocus, fillTemplate } from '@/lib/templateUtils';
-import { createSidebarChat, deepResearchLead, analyzeTemplateStructure, generateHook } from '@/services/geminiService';
-import type { FocusTemplateBricks, AgentMode } from '@/types';
+import { parseFunctionCallsFromText } from '@/lib/parseFunctionCalls';
+import { createLLMChat } from '@/services/llmProvider';
+import { executeAgentFunction } from '@/services/agentFunctions';
+import { deepResearchLead, analyzeTemplateStructure, generateHook } from '@/services/geminiService';
+import FunctionExecutionModal, { type ExecutionStatus } from '@/components/FunctionExecutionModal';
+import type { FocusTemplateBricks, AgentMode, LLMMessage } from '@/types';
 import { AGENT_MODE_LABELS, AGENT_MODE_DESCRIPTIONS } from '@/types';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 export type SidebarMessage = {
   id: string;
@@ -35,6 +40,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
   const { pushHook } = useAgentBridge();
   const { mode, modeOverride, setModeOverride } = useAgentMode();
   const { profile } = useClubProfile();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<SidebarMessage[]>([]);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [systemLog, setSystemLog] = useState<string[]>([]);
@@ -43,10 +49,21 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRegeneratingHook, setIsRegeneratingHook] = useState(false);
   const [input, setInput] = useState('');
+  const [executionModal, setExecutionModal] = useState<{
+    isOpen: boolean;
+    functionName: string | null;
+    functionArgs: Record<string, any> | null;
+    status: ExecutionStatus;
+    resultMessage?: string;
+  }>({
+    isOpen: false,
+    functionName: null,
+    functionArgs: null,
+    status: 'idle',
+  });
   const modeMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const systemLogRef = useRef<HTMLDivElement>(null);
-  const chatRef = useRef<ReturnType<typeof createSidebarChat> | null>(null);
 
   const selectedLead = activeFocus?.leads?.find((l) => l.id === selectedLeadId) ?? null;
 
@@ -54,9 +71,12 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
     setSystemLog((prev) => [...prev.slice(-(MAX_SYSTEM_LOG_LINES - 1)), line]);
   };
 
+  // Initialize with connection status
   useEffect(() => {
-    chatRef.current = createSidebarChat(activeFocus ?? null, selectedLead ?? null);
-  }, [activeFocus, selectedLead]);
+    pushLog('> Groq LLM: llama-3.1-8b-instant');
+    pushLog('> Function calling enabled');
+    pushLog('> Ready');
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -241,18 +261,95 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
     setIsLoading(true);
     pushLog('> Sending...');
     try {
-      const result = await chatRef.current?.sendMessage({ message: text });
-      const responseText = result?.text ?? 'No response.';
-      setMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: 'agent', text: responseText },
-      ]);
-      pushLog('> Response received.');
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: 'agent', text: 'Connection error. Please try again.' },
-      ]);
+      // Convert messages to LLM format
+      const llmMessages: LLMMessage[] = messages.map(m => ({
+        role: m.role === 'agent' ? 'assistant' : 'user',
+        content: m.text
+      }));
+      llmMessages.push({ role: 'user', content: text });
+
+      const result = await createLLMChat({
+        messages: llmMessages,
+        context: {
+          activeFocus: activeFocus ?? null,
+          selectedLead: selectedLead ?? null,
+          clubProfile: profile
+        },
+        functions: true,
+        useSDK: false // Use fetch by default
+      });
+
+      // Check for proper function call OR parse from text (fallback)
+      let functionCall = result.functionCall;
+      let displayText = result.text;
+
+      if (!functionCall && result.text) {
+        // Try to parse function calls from the text (fallback for malformed responses)
+        const parsed = parseFunctionCallsFromText(result.text);
+        if (parsed.functionCalls.length > 0) {
+          functionCall = parsed.functionCalls[0];
+          displayText = parsed.cleanText;
+          pushLog('> Parsed function from text');
+        }
+      }
+
+      // If we have a function call (from API or parsed), execute it with modal
+      if (functionCall) {
+        pushLog(`> Executing: ${functionCall.name}`);
+        
+        // Open modal with executing state
+        setExecutionModal({
+          isOpen: true,
+          functionName: functionCall.name,
+          functionArgs: functionCall.arguments,
+          status: 'executing',
+        });
+
+        const execution = await executeAgentFunction(
+          functionCall.name,
+          functionCall.arguments,
+          { activeFocus, selectedLead, clubProfile: profile }
+        );
+
+        // Update modal with result
+        setExecutionModal(prev => ({
+          ...prev,
+          status: execution.success ? 'success' : 'error',
+          resultMessage: execution.message,
+        }));
+        
+        const actions: Array<{ id: string; label: string; type: string }> = [];
+        if (execution.success && execution.navigateTo) {
+          actions.push({ id: 'view-agents', label: 'View in Agents Tab', type: 'navigate_agents' });
+        }
+
+        setMessages((prev) => [...prev, {
+          id: `a-${Date.now()}`,
+          role: 'agent',
+          text: execution.message,
+          actions: actions.length > 0 ? actions : undefined
+        }]);
+        pushLog('> Done.');
+      } else if (displayText) {
+        // Regular text response (show cleaned text if we removed failed function parsing)
+        setMessages((prev) => [...prev, {
+          id: `a-${Date.now()}`,
+          role: 'agent',
+          text: displayText
+        }]);
+        pushLog('> Response received.');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Connection error';
+      setMessages((prev) => [...prev, {
+        id: `a-${Date.now()}`,
+        role: 'agent',
+        text: `⚠ ${errorMsg}`
+      }]);
+      // Close modal with error if it was open
+      setExecutionModal(prev => 
+        prev.isOpen ? { ...prev, status: 'error', resultMessage: errorMsg } : prev
+      );
       pushLog('> Error.');
     } finally {
       setIsLoading(false);
@@ -295,7 +392,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
             {selectedLead ? `${selectedLead.companyName} · ${selectedLead.leadName}` : 'No lead selected'}
           </p>
           <p className="text-[9px] font-mono uppercase text-neutral-500 mt-1">
-            Model: Gemini 3 Pro
+            Model: Groq llama-3.1-8b-instant
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -340,6 +437,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
                           if (a.type === 'apply_template_changes') handleApplyTemplateChanges();
                           if (a.type === 'regenerate_hook') handleInlineRegenerateHook();
                           if (a.type === 'save_to_draft') handleSaveToDraft();
+                          if (a.type === 'navigate_agents') navigate('/agents');
                         }}
                       >
                         {a.label}
@@ -505,6 +603,16 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
           </Button>
         </div>
       </footer>
+
+      {/* Function Execution Modal */}
+      <FunctionExecutionModal
+        isOpen={executionModal.isOpen}
+        functionName={executionModal.functionName}
+        functionArgs={executionModal.functionArgs}
+        status={executionModal.status}
+        resultMessage={executionModal.resultMessage}
+        onClose={() => setExecutionModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

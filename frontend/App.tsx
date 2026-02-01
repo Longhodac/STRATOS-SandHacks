@@ -4,6 +4,7 @@ import { ClubProfileProvider } from '@/lib/ClubProfileContext';
 import { FocusProvider } from '@/lib/FocusContext';
 import { SelectedLeadProvider } from '@/lib/SelectedLeadContext';
 import { AgentBridgeProvider } from '@/lib/AgentBridgeContext';
+import { LLMConfigProvider } from '@/lib/LLMConfigContext';
 import Layout from './components/Layout';
 import Home from './views/Home';
 import Objectives from './views/Objectives';
@@ -19,16 +20,18 @@ const App: React.FC = () => {
         <FocusProvider>
           <SelectedLeadProvider>
             <AgentBridgeProvider>
-              <Layout>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/objectives" element={<Objectives />} />
-                  <Route path="/clubs" element={<Clubs />} />
-                  <Route path="/sponsors" element={<Sponsors />} />
-                  <Route path="/agents" element={<Agents />} />
-                  <Route path="/settings" element={<Settings />} />
-                </Routes>
-              </Layout>
+              <LLMConfigProvider>
+                <Layout>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/objectives" element={<Objectives />} />
+                    <Route path="/clubs" element={<Clubs />} />
+                    <Route path="/sponsors" element={<Sponsors />} />
+                    <Route path="/agents" element={<Agents />} />
+                    <Route path="/settings" element={<Settings />} />
+                  </Routes>
+                </Layout>
+              </LLMConfigProvider>
             </AgentBridgeProvider>
           </SelectedLeadProvider>
         </FocusProvider>
