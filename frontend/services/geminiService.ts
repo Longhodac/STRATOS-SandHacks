@@ -1,10 +1,11 @@
-
-import { GoogleGenAI, Type, Chat } from "@google/genai";
+// Static mock service - no API key required
 import type { Lead, Focus, FocusTemplateBricks, FocusTemplateType } from "@/types";
 import type { HookTone } from "@/types";
 
-const API_KEY = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+// Mock Chat interface
+export interface Chat {
+  sendMessage: (message: string) => Promise<{ text: string }>;
+}
 
 const TONE_PROMPTS: Record<HookTone, string> = {
   professional: "Professional and polished. One or two sentences. No slang.",
@@ -13,69 +14,42 @@ const TONE_PROMPTS: Record<HookTone, string> = {
 };
 
 export const parseMissionData = async (text: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Parse the following raw mission data for club collaboration goals. Extract key entities like Target Event, Partner Clubs, Timeline, Focus Areas, and Event Type. Return as a clean JSON array of {label, value} objects. Input:\n${text}`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            label: { type: Type.STRING },
-            value: { type: Type.STRING }
-          },
-          required: ["label", "value"]
-        }
-      }
-    }
-  });
-
-  try {
-    return JSON.parse(response.text);
-  } catch (e) {
-    console.error("Failed to parse AI response", e);
-    return [];
-  }
+  // Static mock response
+  return [
+    { label: "Target Event", value: "Hackathon 2024" },
+    { label: "Partner Clubs", value: "CS Club, Robotics Team" },
+    { label: "Timeline", value: "Q2 2024" },
+    { label: "Focus Areas", value: "AI/ML, Web Development" },
+    { label: "Event Type", value: "Competition" }
+  ];
 };
 
 export const generateDraft = async (clubName: string, research: { memberCount: string; meetingTime: string; contact: string }) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-pro-preview",
-    contents: `Write a concise, friendly club collaboration proposal for ${clubName}.
-    Context:
-    - Contact: ${research.contact}
-    - Members: ${research.memberCount}
-    - Meeting Time: ${research.meetingTime}
-    
-    The tone should be direct and collaborative - propose a joint event or partnership, highlight mutual value, avoid fluff.`,
-    config: {
-      temperature: 0.7,
-      maxOutputTokens: 500
-    }
-  });
+  // Static mock response
+  return `Hi ${research.contact},
 
-  return response.text;
+I hope this message finds you well! I'm reaching out on behalf of our club to explore a potential collaboration with ${clubName}.
+
+With ${research.memberCount} and your meetings at ${research.meetingTime}, I think there's great potential for us to work together on a joint event or initiative. Our members are enthusiastic about connecting with like-minded students and creating impactful projects together.
+
+Would you be open to a quick call next week to discuss some ideas?
+
+Best regards`;
 };
 
 export const generateSponsorDraft = async (company: string, research: { funding: string; industry: string; contact: string }) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-pro-preview",
-    contents: `Write a concise, professional sponsorship outreach email for ${company}.
-    Context:
-    - Contact: ${research.contact}
-    - Funding: ${research.funding}
-    - Industry: ${research.industry}
-    
-    The tone should be direct and professional - request sponsorship support for a school club, highlight mutual value, avoid fluff.`,
-    config: {
-      temperature: 0.7,
-      maxOutputTokens: 500
-    }
-  });
+  // Static mock response
+  return `Dear ${research.contact},
 
-  return response.text;
+I hope this email finds you well. I'm writing to explore potential sponsorship opportunities with ${company}.
+
+As a ${research.industry} leader with ${research.funding} in funding, we believe there's a strong alignment between your company's mission and our club's initiatives. We're looking for partners who can help us deliver meaningful impact to our community.
+
+We'd love to discuss how a partnership could be mutually beneficial. Would you be available for a brief call?
+
+Thank you for considering this opportunity.
+
+Best regards`;
 };
 
 export type HookResult = { hook: string; reasoning: string };
@@ -86,42 +60,13 @@ export const generateHook = async (
   hookInstructions: string,
   tone: HookTone = "professional"
 ): Promise<HookResult> => {
-  const toneDesc = TONE_PROMPTS[tone];
+  // Static mock response
   const interests = clubInterests.length ? clubInterests.join(", ") : "technical projects and community";
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are writing the opening "hook" sentence for a cold outreach email from a student club to ${companyName}.
-
-Club interests/focus: ${interests}
-Instructions for linking company to club: ${hookInstructions}
-
-Tone: ${toneDesc}
-
-Return a JSON object with exactly two keys:
-- "reasoning": One short sentence explaining how you linked the company to the club (e.g. "Linked Company Project X to Club Interest: Web3").
-- "hook": The single opening sentence to use in the email (e.g. "I saw that [Company] recently launched their new API; given our club's focus on backend architecture, I thought...").
-
-Write only the JSON, no markdown.`,
-    config: {
-      temperature: 0.7,
-      maxOutputTokens: 300,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          reasoning: { type: Type.STRING },
-          hook: { type: Type.STRING },
-        },
-        required: ["reasoning", "hook"],
-      },
-    },
-  });
-  try {
-    const parsed = JSON.parse(response.text) as { reasoning: string; hook: string };
-    return { hook: parsed.hook || "", reasoning: parsed.reasoning || "" };
-  } catch {
-    return { hook: response.text, reasoning: "" };
-  }
+  
+  return {
+    hook: `I noticed ${companyName}'s recent work in ${interests}, and thought it would be a great fit for our club's mission.`,
+    reasoning: `Linked ${companyName}'s focus to club interests: ${interests}`
+  };
 };
 
 export const generateAllHooks = async (
@@ -139,37 +84,36 @@ export const generateAllHooks = async (
 };
 
 export const createStrategyChat = (): Chat => {
-  return ai.chats.create({
-    model: 'gemini-3-pro-preview',
-    config: {
-      systemInstruction: `You are the STRATOS Strategic Advisor. You help school clubs plan club collaboration and partnership outreach.
-      You are highly analytical, direct, and data-driven.
-      You suggest partner clubs, collaboration opportunities, joint events, and relationship-building strategies.
-      Use clear language and stay mission-focused on club-to-club collaboration.`,
-    },
-  });
+  // Return a mock chat interface
+  return {
+    sendMessage: async (message: string) => {
+      // Static mock responses based on common questions
+      if (message.toLowerCase().includes('partner') || message.toLowerCase().includes('club')) {
+        return { 
+          text: "Consider reaching out to clubs with complementary interests. Look for organizations that share your values but have different skill sets. Joint events like hackathons or workshops can be great starting points." 
+        };
+      }
+      if (message.toLowerCase().includes('sponsor') || message.toLowerCase().includes('funding')) {
+        return { 
+          text: "For sponsorships, focus on companies that align with your club's mission. Highlight the value you bring - community reach, talent pipeline, brand visibility. Start with local companies and scale up." 
+        };
+      }
+      return { 
+        text: "I can help you with partnership strategies, club collaboration ideas, and outreach planning. What specific aspect would you like to focus on?" 
+      };
+    }
+  };
 };
 
 export async function deepResearchLead(lead: Lead, focusName?: string): Promise<string[]> {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Perform intensive research on this outreach lead for a school club.
-Lead: ${lead.leadName} at ${lead.companyName}${lead.contactEmail ? ` (${lead.contactEmail})` : ''}.
-${focusName ? `Focus/campaign: ${focusName}.` : ''}
-
-Return 5-10 bullet-point findings that would help tailor outreach: company recent news, initiatives, values, decision-maker context, or similar partnerships. Be specific and actionable.
-Format: one finding per line, starting with "- ". No other text.`,
-    config: {
-      temperature: 0.5,
-      maxOutputTokens: 800,
-    },
-  });
-  const text = response.text ?? "";
-  const bullets = text
-    .split("\n")
-    .map((s) => s.replace(/^\s*[-*]\s*/, "").trim())
-    .filter(Boolean);
-  return bullets.length > 0 ? bullets : [text.trim() || "No findings returned."];
+  // Static mock response
+  return [
+    `${lead.companyName} recently launched a new initiative focused on innovation and community engagement`,
+    `${lead.leadName} has been actively involved in partnerships with educational institutions`,
+    `The company values collaboration and has a history of supporting student organizations`,
+    `Recent press mentions highlight their commitment to technology education`,
+    `Similar partnerships in the past have focused on mentorship and skill development`
+  ];
 }
 
 export type AnalyzeTemplateResult = {
@@ -181,72 +125,61 @@ export async function analyzeTemplateStructure(
   bricks: FocusTemplateBricks,
   focusType: FocusTemplateType
 ): Promise<AnalyzeTemplateResult> {
+  // Static mock response
   const typeLabel = focusType === "sponsorship" ? "sponsorship" : "collaboration";
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Analyze this outreach email template (${typeLabel} focus). Suggest concrete improvements for clarity, tone, and conversion.
-
-Current template:
-- Greeting: ${bricks.greeting}
-- Hook instructions: ${bricks.hookInstructions}
-- Credibility: ${bricks.credibility}
-- Meat (the ask): ${bricks.meat}
-- CTA: ${bricks.cta}
-
-Return a JSON object with:
-1. "suggestions": A short paragraph of 2-4 sentences with improvement suggestions.
-2. "suggestedBricks": Optional object with any of: greeting, hookInstructions, credibility, meat, cta — only include keys you want to change, with improved text. Keep the same structure (e.g. use {{lead_name}} in greeting if present).
-
-Return only the JSON, no markdown.`,
-    config: {
-      temperature: 0.4,
-      maxOutputTokens: 600,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          suggestions: { type: Type.STRING },
-          suggestedBricks: {
-            type: Type.OBJECT,
-            properties: {
-              greeting: { type: Type.STRING },
-              hookInstructions: { type: Type.STRING },
-              credibility: { type: Type.STRING },
-              meat: { type: Type.STRING },
-              cta: { type: Type.STRING },
-            },
-          },
-        },
-        required: ["suggestions"],
-      },
-    },
-  });
-  try {
-    const parsed = JSON.parse(response.text) as AnalyzeTemplateResult;
-    return {
-      suggestions: parsed.suggestions ?? "",
-      suggestedBricks: parsed.suggestedBricks,
-    };
-  } catch {
-    return { suggestions: response.text ?? "Analysis failed." };
-  }
+  
+  return {
+    suggestions: `Your ${typeLabel} template looks solid. Consider making the hook more specific to each recipient and ensuring the CTA is clear and actionable. The credibility section could benefit from specific metrics or achievements.`,
+    suggestedBricks: {
+      cta: "Would you be available for a 15-minute call next week to discuss this opportunity?"
+    }
+  };
 }
 
 export function createSidebarChat(activeFocus: Focus | null, selectedLead: Lead | null): Chat {
+  // Return a mock chat interface with context awareness
   const focusCtx = activeFocus
     ? `Active focus: "${activeFocus.name}". Ask: ${activeFocus.ask}. Target: ${activeFocus.targetProfile}.`
     : 'No focus selected.';
   const leadCtx = selectedLead
     ? `Selected lead: ${selectedLead.leadName} at ${selectedLead.companyName}${selectedLead.contactEmail ? ` (${selectedLead.contactEmail})` : ''}.`
     : 'No lead selected.';
-  return ai.chats.create({
-    model: 'gemini-3-pro-preview',
-    config: {
-      systemInstruction: `You are the STRATOS co-pilot. You help with outreach: sponsor partnerships and club collaborations.
-      You have access to the current workspace context. Be concise and actionable.
-      ${focusCtx}
-      ${leadCtx}
-      When the user is editing a draft, you can suggest hook or meat text; the user can apply it via inline buttons.`,
-    },
-  });
+    
+  return {
+    sendMessage: async (message: string) => {
+      const msg = message.toLowerCase();
+      
+      // Context-aware responses
+      if (msg.includes('hook') || msg.includes('opening')) {
+        if (selectedLead) {
+          return { 
+            text: `For ${selectedLead.companyName}, try opening with their recent initiatives or how their work aligns with your club's mission. Make it personal and specific.` 
+          };
+        }
+        return { text: "Select a lead first, and I can help you craft a personalized hook for them." };
+      }
+      
+      if (msg.includes('draft') || msg.includes('email')) {
+        if (activeFocus) {
+          return { 
+            text: `For your "${activeFocus.name}" focus, emphasize ${activeFocus.ask}. Keep it concise and include a clear call-to-action.` 
+          };
+        }
+        return { text: "I can help you draft an email. What's the main goal of this outreach?" };
+      }
+      
+      if (msg.includes('research')) {
+        if (selectedLead) {
+          return { 
+            text: `Key points about ${selectedLead.companyName}: They value innovation and partnerships. Look for recent news or initiatives that align with your club's goals.` 
+          };
+        }
+        return { text: "Select a lead to research, and I'll help you gather relevant insights." };
+      }
+      
+      return { 
+        text: `I'm here to help with your outreach. ${focusCtx} ${leadCtx} Ask me about hooks, drafts, or research!` 
+      };
+    }
+  };
 }

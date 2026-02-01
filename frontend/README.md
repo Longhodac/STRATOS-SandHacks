@@ -4,7 +4,7 @@ This is a web app for satellite communication analysis and outreach. The project
 
 ## What it does
 
-The app helps analyze satellite communication data and provides an interface for tracking and managing outreach activities. It uses AI to help process and understand satellite telemetry and communication patterns.
+The app helps analyze satellite communication data and provides an interface for tracking and managing outreach activities.
 
 ## Getting Started
 
@@ -15,17 +15,12 @@ You need Node.js installed on your computer to run this.
    npm install
    ```
 
-2. Create a .env.local file and add your API key:
-   ```
-   GEMINI_API_KEY=your_api_key_here
-   ```
-
-3. Start the development server:
+2. Start the development server:
    ```
    npm run dev
    ```
 
-4. Open your browser and go to the local URL shown in the terminal (usually http://localhost:5173)
+3. Open your browser and go to the local URL shown in the terminal (usually http://localhost:3000)
 
 ## Tech Stack
 
@@ -33,4 +28,4 @@ You need Node.js installed on your computer to run this.
 - TypeScript for type safety
 - Vite for fast development and building
 - React Router for navigation
-- Google Generative AI for processing data
+- Static mock data for testing (no API key required)
