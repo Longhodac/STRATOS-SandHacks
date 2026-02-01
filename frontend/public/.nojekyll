@@ -1,0 +1,2 @@
+# Prevent GitHub Pages from using Jekyll
+# This ensures all files (including those starting with _) are served correctly
