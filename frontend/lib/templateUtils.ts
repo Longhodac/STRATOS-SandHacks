@@ -7,7 +7,7 @@ export function getDefaultTemplateBricks(type: FocusTemplateType): FocusTemplate
   if (type === 'sponsorship') {
     return {
       greeting,
-      hookInstructions: 'Focus on linking the company\'s recent projects or initiatives to our club\'s technical interests. Mention specific products or programs when relevant.',
+      hookInstructions: '',
       credibility: 'We represent 300+ students and run events that reach the broader campus community.',
       meat: 'We are seeking $1,000 and in-kind support for our hackathon. In return we offer logo placement, social shoutouts, and a tabling spot at the event.',
       cta: 'Would you be open to a short call to discuss? We\'d love to partner with you.',
@@ -16,7 +16,7 @@ export function getDefaultTemplateBricks(type: FocusTemplateType): FocusTemplate
   }
   return {
     greeting,
-    hookInstructions: 'Focus on shared interests (e.g. technical workshops, community building). Link their initiatives to our club\'s activities.',
+    hookInstructions: '',
     credibility: 'We represent 300+ students and run events that reach the broader campus community.',
     meat: 'We\'d love to co-host a workshop or joint event. We can offer venue and promotion; we\'re open to your ideas for format and date.',
     cta: 'Would you be open to a 10-minute call to explore this?',

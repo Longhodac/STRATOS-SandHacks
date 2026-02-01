@@ -153,6 +153,13 @@ export const AGENT_MODE_LABELS: Record<AgentMode, string> = {
   strategy: 'ARCHITECT',
 };
 
+export const AGENT_MODE_DESCRIPTIONS: Record<AgentMode, string> = {
+  discovery: 'Find and qualify new leads.',
+  research: 'Deep-dive on a selected lead.',
+  drafting: 'Edit templates and personalize drafts.',
+  strategy: 'Plan goals and next steps.',
+};
+
 export interface Focus {
   id: string;
   name: string;

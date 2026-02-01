@@ -10,7 +10,7 @@ import { useClubProfile } from '@/lib/ClubProfileContext';
 import { getMeatFromFocus, fillTemplate } from '@/lib/templateUtils';
 import { createSidebarChat, deepResearchLead, analyzeTemplateStructure, generateHook } from '@/services/geminiService';
 import type { FocusTemplateBricks, AgentMode } from '@/types';
-import { AGENT_MODE_LABELS } from '@/types';
+import { AGENT_MODE_LABELS, AGENT_MODE_DESCRIPTIONS } from '@/types';
 import { cn } from '@/lib/utils';
 
 export type SidebarMessage = {
@@ -279,22 +279,22 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
     <div
       className={cn(
         'flex flex-col h-full w-full font-mono shrink-0 flex-[0_0_30%] min-w-0 border-l-2 transition-colors',
-        isProcessing ? 'border-white border-dashed animate-pulse' : 'border-white border-solid',
-        'bg-black text-white'
+        isProcessing ? 'border-neutral-400 border-dashed animate-pulse' : 'border-neutral-300 border-solid',
+        'bg-white text-neutral-900 shadow-[-4px_0_12px_rgba(0,0,0,0.06)]'
       )}
     >
-      <header className="shrink-0 px-3 py-2 border-b border-white/30 flex items-center justify-between gap-2">
+      <header className="shrink-0 px-3 py-2 border-b border-neutral-200 flex items-center justify-between gap-2 bg-neutral-50/80">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-mono uppercase text-white/80 truncate">
+          <p className="text-[10px] font-mono uppercase text-neutral-600 truncate">
             {modeLabel}
           </p>
-          <p className="text-[10px] font-mono uppercase text-white/60 truncate mt-0.5">
+          <p className="text-[10px] font-mono uppercase text-neutral-500 truncate mt-0.5">
             {activeFocus?.name ?? 'No focus'}
           </p>
-          <p className="text-xs font-mono text-white truncate">
+          <p className="text-xs font-mono text-neutral-900 truncate">
             {selectedLead ? `${selectedLead.companyName} · ${selectedLead.leadName}` : 'No lead selected'}
           </p>
-          <p className="text-[9px] font-mono uppercase text-white/60 mt-1">
+          <p className="text-[9px] font-mono uppercase text-neutral-500 mt-1">
             Model: Gemini 3 Pro
           </p>
         </div>
@@ -302,7 +302,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
           <Button
             variant="ghost"
             size="icon"
-            className="shrink-0 rounded-sm border border-white/30 text-white hover:bg-white/10 h-8 w-8"
+            className="shrink-0 rounded-sm border border-neutral-200 text-neutral-600 hover:bg-neutral-100 h-8 w-8"
             onClick={onToggle}
             aria-label="Collapse sidebar"
           >
@@ -323,8 +323,8 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
                 className={cn(
                   'border p-3 rounded-sm',
                   msg.role === 'user'
-                    ? 'bg-white text-black border-white/30'
-                    : 'bg-white/10 border-white/30 text-white'
+                    ? 'bg-neutral-100 border-neutral-200 text-neutral-900'
+                    : 'bg-white border-neutral-200 text-neutral-800'
                 )}
               >
                 <p className="text-xs font-mono whitespace-pre-wrap">{msg.text}</p>
@@ -335,7 +335,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
                         key={a.id}
                         variant="outline"
                         size="sm"
-                        className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10"
+                        className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100"
                         onClick={() => {
                           if (a.type === 'apply_template_changes') handleApplyTemplateChanges();
                           if (a.type === 'regenerate_hook') handleInlineRegenerateHook();
@@ -350,78 +350,78 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
               </div>
             ))}
             {isLoading && (
-              <div className="border border-white/30 p-3 bg-white/10 text-white rounded-sm">
-                <p className="text-xs font-mono text-white/70">Thinking...</p>
+              <div className="border border-neutral-200 p-3 bg-neutral-50 text-neutral-600 rounded-sm">
+                <p className="text-xs font-mono">Thinking...</p>
               </div>
             )}
           </div>
         </div>
 
         <div
-          className="shrink-0 h-20 overflow-y-auto border-t border-white/20 px-3 py-2 bg-black"
+          className="shrink-0 h-20 overflow-y-auto border-t border-neutral-200 px-3 py-2 bg-neutral-50"
           ref={systemLogRef}
         >
-          <div className="text-[10px] font-mono text-white/60 space-y-0.5">
+          <div className="text-[10px] font-mono text-neutral-500 space-y-0.5">
             {systemLog.map((line, i) => (
               <div key={i}>{line}</div>
             ))}
             {systemLog.length === 0 && (
-              <div className="text-white/40">System log</div>
+              <div className="text-neutral-400">System log</div>
             )}
           </div>
         </div>
       </div>
 
-      <footer className="shrink-0 p-3 border-t border-white/30 space-y-2">
+      <footer className="shrink-0 p-3 border-t border-neutral-200 space-y-2 bg-neutral-50/50">
         <div className="flex flex-wrap gap-1">
           {mode === 'discovery' && (
             <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Identify Leads')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Identify Leads')}>
                 [Identify Leads]
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Verify Contact')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Verify Contact')}>
                 [Verify Contact]
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Score Leads')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Score Leads')}>
                 [Score Leads]
               </Button>
             </>
           )}
           {mode === 'research' && selectedLead && (
             <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleDeepResearch} disabled={isDeepResearching}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleDeepResearch} disabled={isDeepResearching}>
                 {isDeepResearching ? "..." : "[Deep Research]"}
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Find Connection')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Find Connection')}>
                 [Find Connection]
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleInlineRegenerateHook} disabled={isRegeneratingHook}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleInlineRegenerateHook} disabled={isRegeneratingHook}>
                 {isRegeneratingHook ? "..." : "[Generate Hook]"}
               </Button>
             </>
           )}
           {mode === 'drafting' && templateModalFocusId && (
             <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Shorten/Expand')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Shorten/Expand')}>
                 [Shorten/Expand]
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Change Tone')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Change Tone')}>
                 [Change Tone]
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleAnalyzeStructure} disabled={isAnalyzing}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleAnalyzeStructure} disabled={isAnalyzing}>
                 {isAnalyzing ? "..." : "[Check Logic]"}
               </Button>
             </>
           )}
           {mode === 'strategy' && (
             <>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Analyze Drive')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Analyze Drive')}>
                 [Analyze Drive]
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Map Mission')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Map Mission')}>
                 [Map Mission]
               </Button>
-              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10" onClick={handleStubAction('Suggest Goal')}>
+              <Button variant="outline" size="sm" className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100" onClick={handleStubAction('Suggest Goal')}>
                 [Suggest Goal]
               </Button>
             </>
@@ -431,19 +431,19 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
           <Button
             variant="outline"
             size="sm"
-            className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10 w-full justify-between"
+            className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100 w-full justify-between bg-white"
             onClick={() => setModeMenuOpen((o) => !o)}
           >
             <span>Mode: {modeOverride ? AGENT_MODE_LABELS[mode] + ' (override)' : 'Auto'}</span>
             <span aria-hidden>▾</span>
           </Button>
           {modeMenuOpen && (
-            <div className="absolute bottom-full left-0 right-0 mb-1 py-1 rounded-sm border border-white/30 bg-black z-10">
+            <div className="absolute bottom-full left-0 right-0 mb-1 py-1 rounded-sm border border-neutral-200 bg-white shadow-lg z-10">
               <button
                 type="button"
                 className={cn(
                   'w-full px-3 py-2 text-left text-xs font-mono',
-                  !modeOverride ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10'
+                  !modeOverride ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-700 hover:bg-neutral-50'
                 )}
                 onClick={() => { setModeOverride(null); setModeMenuOpen(false); }}
               >
@@ -455,11 +455,14 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
                   type="button"
                   className={cn(
                     'w-full px-3 py-2 text-left text-xs font-mono',
-                    modeOverride === m ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10'
+                    modeOverride === m ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-700 hover:bg-neutral-50'
                   )}
                   onClick={() => { setModeOverride(m); setModeMenuOpen(false); }}
                 >
-                  {AGENT_MODE_LABELS[m]}
+                  <span className="block">{AGENT_MODE_LABELS[m]}</span>
+                  <span className="block text-[10px] text-neutral-500 font-normal mt-0.5">
+                    {AGENT_MODE_DESCRIPTIONS[m]}
+                  </span>
                 </button>
               ))}
             </div>
@@ -469,7 +472,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
           <Button
             variant="outline"
             size="sm"
-            className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10 flex-1"
+            className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100 flex-1"
             onClick={() => setPaused((p) => !p)}
           >
             {paused ? '[Resume Agent]' : '[Pause Agent]'}
@@ -477,7 +480,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
           <Button
             variant="outline"
             size="sm"
-            className="font-mono text-xs rounded-sm border-white text-white hover:bg-white/10"
+            className="font-mono text-xs rounded-sm border-neutral-300 text-neutral-800 hover:bg-neutral-100"
             onClick={handleClearContext}
           >
             [Clear Context]
@@ -485,7 +488,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
         </div>
         <div className="flex gap-2">
           <Input
-            className="flex-1 font-mono text-sm rounded-sm bg-white/10 border-white/30 text-white placeholder:text-white/50"
+            className="flex-1 font-mono text-sm rounded-sm bg-white border-neutral-300 text-neutral-900 placeholder:text-neutral-500"
             placeholder="Message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -494,7 +497,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({ onToggle }) => {
           />
           <Button
             size="sm"
-            className="font-mono rounded-sm bg-white text-black hover:bg-white/90 border-0"
+            className="font-mono rounded-sm bg-neutral-900 text-white hover:bg-neutral-800 border-0"
             onClick={handleSend}
             disabled={!input.trim() || isLoading || paused}
           >

@@ -73,12 +73,12 @@ const FocusEditModal: React.FC<FocusEditModalProps> = ({ open, onClose, focusId 
   };
 
   const addPinnedContext = () => {
-    const label = prompt('Label (e.g. Discord: Tech Interests)');
+    const label = prompt('Label (e.g. Google Calendar: Club Events)');
     if (label?.trim()) {
-      const source = prompt('Source (e.g. discord, gdrive)', 'discord');
+      const source = prompt('Source (e.g. calendar, gdrive)', 'calendar');
       setPinnedContexts((prev) => [
         ...prev,
-        { id: 'pc_' + Date.now(), label: label.trim(), source: source?.trim() ?? 'discord' },
+        { id: 'pc_' + Date.now(), label: label.trim(), source: source?.trim() ?? 'calendar' },
       ]);
     }
   };

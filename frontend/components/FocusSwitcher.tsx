@@ -1,16 +1,22 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useFocus } from '@/lib/FocusContext';
 import { useAgentMode } from '@/lib/AgentModeContext';
 import { AGENT_MODE_LABELS } from '@/types';
+import type { FocusTemplateType } from '@/types';
 import { cn } from '@/lib/utils';
 
 type FocusSwitcherProps = {
   onNewFocus: () => void;
+  templateType?: FocusTemplateType;
 };
 
-const FocusSwitcher: React.FC<FocusSwitcherProps> = ({ onNewFocus }) => {
+const FocusSwitcher: React.FC<FocusSwitcherProps> = ({ onNewFocus, templateType }) => {
   const { focuses, activeFocusId, activeFocus, setActiveFocus } = useFocus();
+  const filteredFocuses = useMemo(
+    () => (templateType ? focuses.filter((f) => f.templateType === templateType) : focuses),
+    [focuses, templateType]
+  );
   const { mode } = useAgentMode();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number; minWidth: number } | null>(null);
@@ -90,7 +96,7 @@ const FocusSwitcher: React.FC<FocusSwitcherProps> = ({ onNewFocus }) => {
             className="fixed z-[9999] w-max max-w-[280px] max-h-[min(70vh,400px)] overflow-y-auto rounded-sm border border-neutral-200 bg-white py-1 shadow-md"
             style={{ top: position.top, left: position.left }}
           >
-            {focuses.map((f) => (
+            {filteredFocuses.map((f) => (
               <li key={f.id} role="option" aria-selected={f.id === activeFocusId}>
                 <button
                   type="button"
