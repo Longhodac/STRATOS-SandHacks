@@ -1,0 +1,14 @@
+# Secrets
+.streamlit/secrets.toml
+
+# Database
+*.db
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Output files
+discovered_companies.csv
+discovered_emails.csv
