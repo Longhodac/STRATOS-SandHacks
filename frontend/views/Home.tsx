@@ -1,279 +1,95 @@
-import React, { useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useClubProfile } from '@/lib/ClubProfileContext';
-import { useFocus } from '@/lib/FocusContext';
-import { useFocusModal } from '@/lib/FocusModalContext';
-import { useTemplateModal } from '@/lib/TemplateModalContext';
-import FocusSwitcher from '@/components/FocusSwitcher';
-import type {
-  Lead,
-  PipelineItem,
-  PipelineStage,
-} from '@/types';
+import React from 'react';
+import { Link } from 'react-router-dom';
 
-const HIGH_CONFIDENCE_THRESHOLD = 80;
-
-function computeStatsFromFocus(leads: Lead[], pipeline: PipelineItem[]): {
-  leadsFound: number;
-  outreachSent: number;
-  responseRate: number;
-  highConfidenceMatches: number;
-} {
-  const outreachSent = pipeline.filter((p) => p.stage === 'waiting' || p.stage === 'closed').length;
-  const closed = pipeline.filter((p) => p.stage === 'closed').length;
-  return {
-    leadsFound: leads.length,
-    outreachSent,
-    responseRate: outreachSent === 0 ? 0 : Math.round((closed / outreachSent) * 100),
-    highConfidenceMatches: leads.filter((l) => l.confidenceScore >= HIGH_CONFIDENCE_THRESHOLD).length,
-  };
+interface ActionCard {
+  id: string;
+  title: string;
+  description: string;
+  path: string;
 }
 
-const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
-  researching: 'Researching',
-  review: 'Review Required',
-  waiting: 'Waiting for Reply',
-  closed: 'Closed/Partnered',
+const actions: ActionCard[] = [
+  {
+    id: '01',
+    title: 'START A NEW CAMPAIGN',
+    description: 'Launch a new outreach sequence to a targeted list of prospects.',
+    path: '/objectives',
+  },
+  {
+    id: '02',
+    title: 'DISCOVER COMPANIES',
+    description: 'Search for high-value sponsors using AI-powered discovery.',
+    path: '/agents',
+  },
+  {
+    id: '03',
+    title: 'DRAFT OUTREACH EMAILS',
+    description: 'Compose personalized emails with advanced tools.',
+    path: '/sponsors',
+  },
+  {
+    id: '04',
+    title: 'VIEW ACTIVE CAMPAIGNS',
+    description: 'Monitor your ongoing outreach efforts and response rates.',
+    path: '/objectives',
+  },
+];
+
+const settingsAction: ActionCard = {
+  id: '05',
+  title: 'SET UP YOUR CLUB PROFILE',
+  description: 'Configure your organization settings, team identity, and sending domains.',
+  path: '/settings',
 };
 
-function FocusHeader({ onNewFocus }: { onNewFocus: () => void }) {
-  return (
-    <header className="border-b border-border pb-4">
-      <div className="flex flex-col gap-1">
-        <FocusSwitcher onNewFocus={onNewFocus} />
-      </div>
-    </header>
-  );
-}
-
-function QuickStatsRow({ stats }: { stats: { leadsFound: number; outreachSent: number; responseRate: number; highConfidenceMatches: number } }) {
-  const items = [
-    { label: 'Leads Found', value: stats.leadsFound },
-    { label: 'Outreach Sent', value: stats.outreachSent },
-    { label: 'Response Rate', value: `${stats.responseRate}%` },
-    { label: 'High-Confidence Matches', value: stats.highConfidenceMatches },
-  ];
-  return (
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {items.map(({ label, value }) => (
-        <Card key={label} className="rounded-sm border-border">
-          <CardContent className="p-4">
-            <span className="text-2xl font-light text-foreground font-display tracking-tight">
-              {value}
-            </span>
-            <p className="text-[10px] text-muted-foreground font-mono uppercase mt-1">{label}</p>
-          </CardContent>
-        </Card>
-      ))}
-    </section>
-  );
-}
-
-function ActionQueue({ leads }: { leads: Lead[] }) {
-  return (
-    <Card className="rounded-sm border-border flex flex-col">
-      <CardHeader className="px-5 py-3 border-b border-border">
-        <CardTitle className="font-normal text-muted-foreground text-xs font-mono uppercase tracking-wide">
-          Action Queue
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0 flex-1 min-h-0">
-        <ul className="divide-y divide-border">
-          {leads.slice(0, 5).map((lead) => (
-            <li
-              key={lead.id}
-              className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors"
-            >
-              <span className="text-xs font-mono text-foreground w-8 shrink-0">
-                {lead.confidenceScore}%
-              </span>
-              <span className="text-sm font-mono text-muted-foreground">|</span>
-              <span className="text-sm truncate flex-1 min-w-0">{lead.companyName}</span>
-              <span className="text-sm text-muted-foreground truncate w-24">{lead.leadName}</span>
-              <Button variant="default" size="sm" className="font-mono text-xs shrink-0">
-                {lead.draftReady ? 'SEND' : 'REVIEW'}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DraftsColumn({
-  focusId,
-  leads,
-  onEditMasterTemplate,
-}: {
-  focusId: string;
-  leads: Lead[];
-  onEditMasterTemplate: () => void;
-}) {
-  return (
-    <Card className="rounded-sm border-border flex flex-col">
-      <CardHeader className="px-5 py-3 border-b border-border flex flex-row items-center justify-between gap-2">
-        <CardTitle className="font-normal text-muted-foreground text-xs font-mono uppercase tracking-wide">
-          Drafts
-        </CardTitle>
-        <Button
-          variant="default"
-          size="sm"
-          className="font-mono text-xs shrink-0 bg-black text-white hover:bg-black/90"
-          onClick={onEditMasterTemplate}
-        >
-          Edit Master Template
-        </Button>
-      </CardHeader>
-      <CardContent className="p-0 flex-1 min-h-0">
-        <ScrollArea className="h-[280px]">
-          <ul className="divide-y divide-border">
-            {leads.slice(0, 8).map((lead) => (
-              <li key={lead.id} className="px-5 py-3 hover:bg-muted/30">
-                <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1">
-                  {lead.companyName} · {lead.leadName}
-                </p>
-                <p className="text-xs font-mono text-foreground line-clamp-3 whitespace-pre-wrap">
-                  {lead.draftText || '— No draft yet —'}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </ScrollArea>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ContextSnapshot({
-  missionStatement,
-  interests,
-}: {
-  missionStatement: string;
-  interests: string[];
-}) {
-  return (
-    <Card className="rounded-sm border-border flex flex-col">
-      <CardHeader className="px-5 py-3 border-b border-border">
-        <CardTitle className="font-normal text-muted-foreground text-xs font-mono uppercase tracking-wide">
-          Context Snapshot
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-5 flex flex-col gap-5">
-        <div>
-          <p className="text-[10px] text-muted-foreground font-mono uppercase mb-2">
-            Mission Statement
-          </p>
-          <p className="text-sm text-foreground font-mono leading-relaxed">
-            {missionStatement || '—'}
-          </p>
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground font-mono uppercase mb-2">
-            Active Interests
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {interests.map((tag) => (
-              <Badge key={tag} variant="secondary" className="font-mono text-[10px] font-normal">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function OutreachPipeline({ items }: { items: PipelineItem[] }) {
-  const stages: PipelineStage[] = ['researching', 'review', 'waiting', 'closed'];
-  return (
-    <section className="w-full">
-      <h2 className="text-[10px] text-muted-foreground font-mono uppercase tracking-wide mb-3">
-        Outreach Pipeline
-      </h2>
-      <ScrollArea className="w-full whitespace-nowrap">
-        <div className="flex gap-4 pb-2 min-w-max">
-          {stages.map((stage) => {
-            const stageItems = items.filter((i) => i.stage === stage);
-            return (
-              <div
-                key={stage}
-                className="w-48 shrink-0 rounded-sm border border-border bg-card flex flex-col"
-              >
-                <div className="px-3 py-2 border-b border-border">
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    {PIPELINE_STAGE_LABELS[stage]}
-                  </span>
-                </div>
-                <ScrollArea className="h-32">
-                  <ul className="p-2 space-y-1">
-                    {stageItems.map((item) => (
-                      <li
-                        key={item.id}
-                        className="text-xs font-mono p-2 rounded border border-border bg-background/50"
-                      >
-                        <p className="truncate font-medium">{item.company}</p>
-                        <p className="truncate text-muted-foreground">{item.name}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{item.updatedAt}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </ScrollArea>
-              </div>
-            );
-          })}
-        </div>
-      </ScrollArea>
-    </section>
-  );
-}
-
 const Home: React.FC = () => {
-  const { profile } = useClubProfile();
-  const { activeFocus } = useFocus();
-  const { openFocusModal } = useFocusModal();
-  const { openTemplateModal } = useTemplateModal();
-
-  if (!activeFocus) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground font-mono text-sm">
-        No focus selected. Create one from the New Focus button in the focus dropdown.
-      </div>
-    );
-  }
-
-  const stats = useMemo(
-    () => computeStatsFromFocus(activeFocus.leads, activeFocus.pipeline),
-    [activeFocus.leads, activeFocus.pipeline]
-  );
-
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto p-8 lg:p-12">
-        <div className="max-w-6xl mx-auto flex flex-col gap-8">
-          <FocusHeader onNewFocus={() => openFocusModal(null)} />
-          <QuickStatsRow stats={stats} />
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div>
-              <ActionQueue leads={activeFocus.leads} />
-            </div>
-            <div>
-              <DraftsColumn
-                focusId={activeFocus.id}
-                leads={activeFocus.leads}
-                onEditMasterTemplate={() => openTemplateModal(activeFocus.id)}
-              />
-            </div>
-            <div>
-              <ContextSnapshot missionStatement={profile.missionStatement} interests={profile.interests} />
-            </div>
-          </section>
-          <OutreachPipeline items={activeFocus.pipeline} />
+    <div className="flex-1 h-full bg-muted/30 p-8 lg:p-12 overflow-y-auto">
+      <div className="max-w-4xl mx-auto space-y-6 pt-8">
+        {/* 2x2 Grid for first 4 actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {actions.map((action) => (
+            <Link
+              key={action.id}
+              to={action.path}
+              className="group block bg-white border border-border rounded-sm p-8 hover:border-foreground/20 transition-colors min-h-[200px]"
+            >
+              <div className="space-y-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-muted-foreground font-mono text-sm">
+                    {action.id}
+                  </span>
+                  <h2 className="font-mono text-base font-bold tracking-wide text-foreground">
+                    {action.title}
+                  </h2>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {action.description}
+                </p>
+              </div>
+            </Link>
+          ))}
         </div>
+
+        {/* Full-width 5th action */}
+        <Link
+          to={settingsAction.path}
+          className="group block bg-white border border-border rounded-sm p-8 hover:border-foreground/20 transition-colors"
+        >
+          <div className="space-y-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-muted-foreground font-mono text-sm">
+                {settingsAction.id}
+              </span>
+              <h2 className="font-mono text-base font-bold tracking-wide text-foreground">
+                {settingsAction.title}
+              </h2>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-xl">
+              {settingsAction.description}
+            </p>
+          </div>
+        </Link>
       </div>
     </div>
   );

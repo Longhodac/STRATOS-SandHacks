@@ -17,7 +17,7 @@ type NavItem =
   | { id: string; label: string; path: null; children: { id: string; label: string; path: string }[] };
 
 const navItems: NavItem[] = [
-  { id: '01', label: 'DASHBOARD', path: '/' },
+  { id: '01', label: 'HOME', path: '/' },
   { id: '02', label: 'OBJECTIVES', path: '/objectives' },
   {
     id: '03',
@@ -94,8 +94,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       )}
                       onClick={() => setOutreachExpanded(!outreachExpanded)}
                     >
-                      <span className="hidden lg:block">{item.id} // {item.label}</span>
-                      <span className="lg:hidden">{item.id}</span>
+                      <span className="hidden lg:block">{item.label}</span>
+                      <span className="lg:hidden">{item.label}</span>
                     </Button>
                     {outreachExpanded && (
                       <div className="flex flex-col gap-0 pl-2 lg:pl-4 border-l border-border ml-2 mt-0 mb-1">
@@ -133,8 +133,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   asChild
                 >
                   <Link to={item.path}>
-                    <span className="hidden lg:block">{item.id} // {item.label}</span>
-                    <span className="lg:hidden">{item.id}</span>
+                    <span className="hidden lg:block">{item.label}</span>
+                    <span className="lg:hidden">{item.label}</span>
                   </Link>
                 </Button>
               );
